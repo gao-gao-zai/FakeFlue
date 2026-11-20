@@ -1,6 +1,7 @@
 package com.flue.launcher.surface
 
 import com.flue.launcher.surface.access.SettingsSearchGate
+import com.flue.launcher.surface.apps.OpenFolderVisibility
 import com.flue.launcher.surface.apps.PublicAppCandidate
 import com.flue.launcher.surface.apps.PublicAppCatalog
 import com.flue.launcher.surface.apps.PublicAppRules
@@ -106,5 +107,15 @@ class PublicAppsTest {
         assertNull(DisguiseScreenOff.targetState(ConfigScope.DISGUISE, ScreenState.Face))
         assertNull(DisguiseScreenOff.targetState(ConfigScope.DISGUISE, ScreenState.App))
         assertNull(DisguiseScreenOff.targetState(ConfigScope.FULL, ScreenState.Apps))
+    }
+
+    @Test
+    fun openFolderFollowsWhitelistChanges() {
+        assertEquals(OpenFolderVisibility.Update.Close, OpenFolderVisibility.update(null, listOf("a")))
+        assertEquals(OpenFolderVisibility.Update.Close, OpenFolderVisibility.update("folder", emptyList<String>()))
+        assertEquals(
+            OpenFolderVisibility.Update.Show("folder'", listOf("a")),
+            OpenFolderVisibility.update("folder'", listOf("a")),
+        )
     }
 }

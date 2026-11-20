@@ -880,7 +880,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             // 白名单变化后让通知监听重读，放宽时新公开的通知也能出现（监听侧按白名单截取前 20 条）。
             // 不跳过首个值：冷启动时监听可能已按“设置未读出”的空白名单读过一次。
-            surfaceRuntime.publicApps.collect { WLauncherNotificationListener.refreshIfConnected() }
+            surfaceRuntime.publicApps.collect { whitelist ->
+                // 仓库在应用级作用域里也收这份白名单，先在这里同步应用一次（同值时是空操作），
+                // 保证下面读到的是新的筛选结果，而不是取决于两个收集者谁先执行。
+                appRepository.setPublicWhitelist(whitelist)
+                refreshOpenFolderVisibility()
+                WLauncherNotificationListener.refreshIfConnected()
+            }
         }
         viewModelScope.launch {
             FlueAccessibilityService.lastExternalForegroundEvidence.collect { evidence ->
@@ -2104,6 +2110,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (!folder.isFolder) return
         _openFolder.value = folder
         _openFolderItems.value = appRepository.folderItems(folder.componentKey)
+    }
+
+    /** 白名单变化后按新规则刷新已打开的文件夹，不再显示已不公开的应用（R10）。 */
+    private fun refreshOpenFolderVisibility() {
+        val folder = _openFolder.value ?: return
+        val update = com.flue.launcher.surface.apps.OpenFolderVisibility.update(
+            visibleFolder = apps.value.firstOrNull { it.componentKey == folder.componentKey },
+            visibleItems = appRepository.folderItems(folder.componentKey),
+        )
+        when (update) {
+            com.flue.launcher.surface.apps.OpenFolderVisibility.Update.Close -> closeFolder()
+            is com.flue.launcher.surface.apps.OpenFolderVisibility.Update.Show -> {
+                _openFolder.value = update.folder
+                _openFolderItems.value = update.items
+            }
+        }
     }
 
     fun closeFolder() {
