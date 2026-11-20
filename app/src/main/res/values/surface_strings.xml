@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FFlue 模式内核（R05–R08、R18）的界面文字。 -->
+<resources>
+    <string name="surface_settings_title">桌面模式</string>
+    <string name="surface_settings_subtitle">完整桌面、伪装桌面与外部桌面</string>
+    <string name="surface_mode_current">当前模式</string>
+    <string name="surface_mode_full">完整桌面</string>
+    <string name="surface_mode_disguise">伪装桌面</string>
+    <string name="surface_mode_external">外部桌面</string>
+    <string name="surface_mode_full_desc">Flue 的全部功能</string>
+    <string name="surface_mode_disguise_desc">普通手表外观，只保留公开功能</string>
+    <string name="surface_mode_external_desc">正在使用其他桌面</string>
+    <string name="surface_section_switch">切换</string>
+    <string name="surface_action_enter_disguise">进入伪装桌面</string>
+    <string name="surface_action_restore_full">恢复完整桌面</string>
+    <string name="surface_action_return_external">返回外部桌面</string>
+    <string name="surface_section_external">外部桌面</string>
+    <string name="surface_external_target">外部桌面目标</string>
+    <string name="surface_external_target_none">未选择</string>
+    <string name="surface_external_target_empty">没有找到其他桌面</string>
+    <string name="surface_section_system">系统</string>
+    <string name="surface_default_home">默认桌面设置</string>
+    <string name="surface_default_home_is_self">系统默认桌面：FFlue</string>
+    <string name="surface_default_home_other_fmt">系统默认桌面：%1$s</string>
+    <string name="surface_default_home_none">系统未设置默认桌面</string>
+    <string name="surface_rerun_welcome">重新运行首次使用引导</string>
+    <string name="surface_result_busy">正在切换，请稍候</string>
+    <string name="surface_result_failed_persist">保存模式失败，已保持原模式</string>
+    <string name="surface_result_target_missing">请先选择外部桌面</string>
+    <string name="surface_result_target_invalid">外部桌面不可用，请重新选择</string>
+    <string name="surface_result_launch_failed">无法打开外部桌面，已保持原模式</string>
+    <string name="surface_result_blocked_config">请先完成伪装桌面配置</string>
+    <string name="surface_result_blocked_tutorial">请先完成伪装桌面教程</string>
+    <string name="surface_result_default_home_self">已打开外部桌面，但系统默认桌面仍是 FFlue，请在系统设置中选择</string>
+    <string name="surface_result_entered_disguise">已进入伪装桌面</string>
+    <string name="surface_result_restored_full">已恢复完整桌面</string>
+    <string name="surface_target_rejected">不能选择这个桌面</string>
+    <string name="onboarding_welcome_title">欢迎使用 FFlue</string>
+    <string name="onboarding_welcome_body">先选择桌面模式，再设置默认桌面。之后可以随时在 设置 → 桌面模式 中更改。</string>
+    <string name="onboarding_start">开始</string>
+    <string name="onboarding_choose_title">选择桌面模式</string>
+    <string name="onboarding_home_title">设为默认桌面</string>
+    <string name="onboarding_home_body">在系统页面中选择 FFlue 作为默认桌面，按 Home 键才会回到 FFlue。</string>
+    <string name="onboarding_home_open_settings">打开默认桌面设置</string>
+    <string name="onboarding_home_confirmed">已确认：FFlue 是默认桌面</string>
+    <string name="onboarding_home_not_confirmed">尚未确认：系统默认桌面不是 FFlue</string>
+    <string name="onboarding_home_done">完成</string>
+    <string name="onboarding_home_skip">跳过</string>
+    <string name="onboarding_home_skip_hint">跳过后，按 Home 键可能回到系统或其他桌面。可以稍后在 设置 → 桌面模式 中设置。</string>
+    <string name="onboarding_home_skip_confirm">仍然跳过</string>
+    <string name="onboarding_full_hint">可以在 设置 → 桌面模式 中进入伪装桌面</string>
+</resources>

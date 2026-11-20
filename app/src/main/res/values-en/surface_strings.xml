@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FFlue 模式内核（R05–R08、R18）的界面文字。 -->
+<resources>
+    <string name="surface_settings_title">Desktop mode</string>
+    <string name="surface_settings_subtitle">Full, disguise and external desktop</string>
+    <string name="surface_mode_current">Current mode</string>
+    <string name="surface_mode_full">Full desktop</string>
+    <string name="surface_mode_disguise">Disguise desktop</string>
+    <string name="surface_mode_external">External desktop</string>
+    <string name="surface_mode_full_desc">All Flue features</string>
+    <string name="surface_mode_disguise_desc">Ordinary watch look with public features only</string>
+    <string name="surface_mode_external_desc">Another desktop is in use</string>
+    <string name="surface_section_switch">Switch</string>
+    <string name="surface_action_enter_disguise">Enter disguise desktop</string>
+    <string name="surface_action_restore_full">Restore full desktop</string>
+    <string name="surface_action_return_external">Return to external desktop</string>
+    <string name="surface_section_external">External desktop</string>
+    <string name="surface_external_target">External desktop target</string>
+    <string name="surface_external_target_none">Not selected</string>
+    <string name="surface_external_target_empty">No other desktop found</string>
+    <string name="surface_section_system">System</string>
+    <string name="surface_default_home">Default home settings</string>
+    <string name="surface_default_home_is_self">System default home: FFlue</string>
+    <string name="surface_default_home_other_fmt">System default home: %1$s</string>
+    <string name="surface_default_home_none">No default home is set</string>
+    <string name="surface_rerun_welcome">Run first-use guide again</string>
+    <string name="surface_result_busy">Switching, please wait</string>
+    <string name="surface_result_failed_persist">Could not save the mode; kept the previous mode</string>
+    <string name="surface_result_target_missing">Choose an external desktop first</string>
+    <string name="surface_result_target_invalid">The external desktop is unavailable; choose again</string>
+    <string name="surface_result_launch_failed">Could not open the external desktop; kept the previous mode</string>
+    <string name="surface_result_blocked_config">Finish the disguise desktop setup first</string>
+    <string name="surface_result_blocked_tutorial">Finish the disguise desktop tutorial first</string>
+    <string name="surface_result_default_home_self">The external desktop opened, but FFlue is still the default home. Choose one in system settings.</string>
+    <string name="surface_result_entered_disguise">Entered disguise desktop</string>
+    <string name="surface_result_restored_full">Full desktop restored</string>
+    <string name="surface_target_rejected">This desktop can\'t be selected</string>
+    <string name="onboarding_welcome_title">Welcome to FFlue</string>
+    <string name="onboarding_welcome_body">Choose a desktop mode, then set the default home. You can change it later in Settings → Desktop mode.</string>
+    <string name="onboarding_start">Start</string>
+    <string name="onboarding_choose_title">Choose desktop mode</string>
+    <string name="onboarding_home_title">Set as default home</string>
+    <string name="onboarding_home_body">Choose FFlue as the default home in the system page so the Home key returns to FFlue.</string>
+    <string name="onboarding_home_open_settings">Open default home settings</string>
+    <string name="onboarding_home_confirmed">Confirmed: FFlue is the default home</string>
+    <string name="onboarding_home_not_confirmed">Not confirmed: FFlue is not the default home</string>
+    <string name="onboarding_home_done">Done</string>
+    <string name="onboarding_home_skip">Skip</string>
+    <string name="onboarding_home_skip_hint">If you skip, the Home key may go to the system or another desktop. You can set it later in Settings → Desktop mode.</string>
+    <string name="onboarding_home_skip_confirm">Skip anyway</string>
+    <string name="onboarding_full_hint">You can enter the disguise desktop in Settings → Desktop mode</string>
+</resources>

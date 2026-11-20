@@ -1,0 +1,129 @@
+# FFlue CI。仓库必须是私有仓库（需求 R03：闭源，不得发布到公开仓库）。
+#
+# unit：每次 push / PR 运行 JVM 单元测试（JUnit + Robolectric）并构建 Debug APK。
+# emulator：仅 PR 和手动触发时运行，在模拟器上跑不需要 Root / SIM 的仪器测试；
+#           没有 app/src/androidTest 时自动跳过。
+
+name: Android CI
+
+on:
+  push:
+    branches: [main, "yzp/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # 私有仓库标准 runner 内存较小：Kotlin 编译放进 Gradle 进程内，避免再起一个 4 GB 的 Kotlin daemon。
+  GRADLE_OPTS: >-
+    -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+    -Dkotlin.compiler.execution.strategy=in-process
+
+jobs:
+  unit:
+    name: 单元测试与 Debug 构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"  # Robolectric 跑 Android SDK 36 沙箱需要 Java 21；字节码仍以 17 为目标
+
+      # runner 镜像自带 Android SDK；缺的 platform / build-tools 由 AGP 自动下载。
+      - uses: gradle/actions/setup-gradle@v5
+
+      # gradlew 已由 .gitattributes 固定为 LF；这里只补执行权限。
+      - name: 单元测试
+        run: |
+          chmod +x gradlew
+          ./gradlew --max-workers=2 testDebugUnitTest --continue
+
+      - name: 构建 Debug APK
+        run: ./gradlew --max-workers=2 assembleDebug
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-test-reports
+          path: app/build/reports/tests/
+          retention-days: 7
+
+      - name: 上传 Debug APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+  emulator:
+    name: 模拟器仪器测试 (API ${{ matrix.api }})
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [30] # Android 11
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 检查是否有仪器测试
+        id: check
+        run: |
+          if [ -d app/src/androidTest ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; echo "没有 app/src/androidTest，跳过"; fi
+
+      - if: steps.check.outputs.run == 'true'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"  # Robolectric 跑 Android SDK 36 沙箱需要 Java 21；字节码仍以 17 为目标
+
+      - if: steps.check.outputs.run == 'true'
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: 启用 KVM
+        if: steps.check.outputs.run == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # app 的 abiFilters 只有 armeabi-v7a / arm64-v8a，x86_64 的 API 28/29 镜像没有 ARM 转译；
+      # 模拟器构建用 -Pflue.extraAbi=x86_64 额外打进 x86_64，正式构建不受影响。
+      # 先构建并跑 P0 导航限制验证（只记录，不影响结果），再跑仪器测试。
+      - name: 运行仪器测试（手表尺寸屏幕）
+        if: steps.check.outputs.run == 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb shell wm size 454x454
+            adb shell wm density 320
+            chmod +x gradlew && ./gradlew --max-workers=2 -Pflue.extraAbi=x86_64 assembleDebug
+            bash scripts/ci/statusbar-spike.sh "$(ls app/build/outputs/apk/debug/*.apk | head -1)" build/spike
+            ./gradlew --max-workers=2 -Pflue.extraAbi=x86_64 connectedDebugAndroidTest
+
+      - name: 上传仪器测试报告
+        if: always() && steps.check.outputs.run == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-test-reports-api${{ matrix.api }}
+          path: |
+            app/build/reports/androidTests/
+            build/spike/
+          retention-days: 7

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FFlue 模式内核（R05–R08、R18）的界面文字。 -->
+<resources>
+    <string name="surface_settings_title">デスクトップモード</string>
+    <string name="surface_settings_subtitle">フル・偽装・外部デスクトップ</string>
+    <string name="surface_mode_current">現在のモード</string>
+    <string name="surface_mode_full">フルデスクトップ</string>
+    <string name="surface_mode_disguise">偽装デスクトップ</string>
+    <string name="surface_mode_external">外部デスクトップ</string>
+    <string name="surface_mode_full_desc">Flue のすべての機能</string>
+    <string name="surface_mode_disguise_desc">普通の時計の見た目で、公開機能のみ</string>
+    <string name="surface_mode_external_desc">別のデスクトップを使用中</string>
+    <string name="surface_section_switch">切り替え</string>
+    <string name="surface_action_enter_disguise">偽装デスクトップに入る</string>
+    <string name="surface_action_restore_full">フルデスクトップに戻す</string>
+    <string name="surface_action_return_external">外部デスクトップに戻る</string>
+    <string name="surface_section_external">外部デスクトップ</string>
+    <string name="surface_external_target">外部デスクトップの対象</string>
+    <string name="surface_external_target_none">未選択</string>
+    <string name="surface_external_target_empty">他のデスクトップが見つかりません</string>
+    <string name="surface_section_system">システム</string>
+    <string name="surface_default_home">デフォルトホーム設定</string>
+    <string name="surface_default_home_is_self">システムのデフォルトホーム：FFlue</string>
+    <string name="surface_default_home_other_fmt">システムのデフォルトホーム：%1$s</string>
+    <string name="surface_default_home_none">デフォルトホームが未設定です</string>
+    <string name="surface_rerun_welcome">初回ガイドをもう一度実行</string>
+    <string name="surface_result_busy">切り替え中です。お待ちください</string>
+    <string name="surface_result_failed_persist">モードを保存できませんでした。元のモードのままです</string>
+    <string name="surface_result_target_missing">先に外部デスクトップを選んでください</string>
+    <string name="surface_result_target_invalid">外部デスクトップを利用できません。選び直してください</string>
+    <string name="surface_result_launch_failed">外部デスクトップを開けませんでした。元のモードのままです</string>
+    <string name="surface_result_blocked_config">先に偽装デスクトップの設定を完了してください</string>
+    <string name="surface_result_blocked_tutorial">先に偽装デスクトップのチュートリアルを完了してください</string>
+    <string name="surface_result_default_home_self">外部デスクトップを開きましたが、デフォルトホームはまだ FFlue です。システム設定で選択してください</string>
+    <string name="surface_result_entered_disguise">偽装デスクトップに入りました</string>
+    <string name="surface_result_restored_full">フルデスクトップに戻しました</string>
+    <string name="surface_target_rejected">このデスクトップは選択できません</string>
+    <string name="onboarding_welcome_title">FFlue へようこそ</string>
+    <string name="onboarding_welcome_body">デスクトップモードを選び、デフォルトホームを設定します。後で 設定 → デスクトップモード から変更できます。</string>
+    <string name="onboarding_start">開始</string>
+    <string name="onboarding_choose_title">デスクトップモードを選択</string>
+    <string name="onboarding_home_title">デフォルトホームに設定</string>
+    <string name="onboarding_home_body">システム画面で FFlue をデフォルトホームに選ぶと、ホームキーで FFlue に戻ります。</string>
+    <string name="onboarding_home_open_settings">デフォルトホーム設定を開く</string>
+    <string name="onboarding_home_confirmed">確認済み：FFlue がデフォルトホームです</string>
+    <string name="onboarding_home_not_confirmed">未確認：FFlue はデフォルトホームではありません</string>
+    <string name="onboarding_home_done">完了</string>
+    <string name="onboarding_home_skip">スキップ</string>
+    <string name="onboarding_home_skip_hint">スキップすると、ホームキーでシステムや他のデスクトップに戻る場合があります。後で 設定 → デスクトップモード から設定できます。</string>
+    <string name="onboarding_home_skip_confirm">それでもスキップ</string>
+    <string name="onboarding_full_hint">設定 → デスクトップモード から偽装デスクトップに入れます</string>
+</resources>

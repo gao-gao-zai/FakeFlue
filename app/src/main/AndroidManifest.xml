@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission
+        android:name="android.permission.BODY_SENSORS"
+        android:maxSdkVersion="35" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-feature
+        android:name="android.hardware.sensor.heartrate"
+        android:required="false" />
+    <!-- Weather requests coarse location only after the user taps the system-location
+         setting. Manual city search remains the no-permission fallback. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- 精确位置一起声明，但仍然是「用户点了才申请」。
+         两个理由：①Android 12+ 的系统弹窗只有在同一次请求里同时收到粗/精两个权限时，
+         才会给出「精确 / 大致」二选一；只声明粗的，用户连选精确的机会都没有。
+         ②GPS 与 passive provider 缺了 FINE 会抛 SecurityException，被 runCatching 吞掉
+         之后表现为定位一直等到超时（见 filterWatchWeatherLocationProvidersByPermission），
+         于是 {alat} / {alon} / {aalt} 永远拿不到数据源。
+         只授予粗定位时我们会主动把那两个 provider 筛掉，功能不依赖用户必须给精确位置。 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Watch faces can show upcoming events through the {cex} / {cNxx} tags. The
+         permission is requested only when the user taps that row in settings; until
+         then those tags render as unavailable and nothing is queried. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".FlueApplication"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.WatchLauncher">
+
+        <activity
+            android:name=".LauncherActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:clearTaskOnLaunch="true"
+            android:taskAffinity=""
+            android:screenOrientation="portrait"
+            android:configChanges="keyboard|keyboardHidden|navigation">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:label="@string/settings_title"
+            android:icon="@mipmap/ic_settings_launcher"
+            android:theme="@style/Theme.WatchLauncher"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".HeartRatePermissionRationaleActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.WatchLauncher">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name=".HeartRatePermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity=".HeartRatePermissionRationaleActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity
+            android:name=".ShortcutReceiverActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.WatchLauncher">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name=".ShortcutInstallReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.launcher.action.INSTALL_SHORTCUT" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            clox External Data API（B5）：任何 App 都能往 10 个槽位里写一段字符串，
+            表盘脚本通过 WF.thirdParty.slots[n] 读。
+
+            必须 exported：上游定义的就是「无权限、任何已安装 App 都能写」，加权限门
+            会让照 clox 写的集成方全部失效。所以槽位数据一律当不可信输入 ——
+            长度上限、只当字符串、绝不进求值路径，见 WatchExternalData 的注释。
+
+            两个动作：com.ailife.clox.WRITE_DATA 是为了兼容现有集成方，
+            com.flue.launcher.WRITE_DATA 给新写的用。
+        -->
+        <receiver
+            android:name=".watchface.standard.WatchExternalDataReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.ailife.clox.WRITE_DATA" />
+                <action android:name="com.flue.launcher.WRITE_DATA" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name=".InternalWatchFaceConfigActivity"
+            android:exported="false"
+            android:label="@string/internal_watchface_config_title"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".BuiltInFileManagerActivity"
+            android:exported="false"
+            android:label="@string/internal_watchface_config_title"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".WatchStoreActivity"
+            android:exported="false"
+            android:label="@string/watch_store_title"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <!--
+          C1 网页版兜底宿主。exported="false"：只有 Flue 自己能启动它 —— 它加载的是带登录
+          cookie 的站点，绝不能让别的 App 用 EXTRA_URL 指使它去打开任意地址（宿主内部还有
+          一道站内白名单，这里是第一道）。
+        -->
+        <activity
+            android:name="com.flue.launcher.ui.store.WatchStoreWebActivity"
+            android:exported="false"
+            android:label="@string/watch_store_title"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".WatchEditorActivity"
+            android:exported="false"
+            android:label="@string/watch_editor_title"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".CanvasAdjustActivity"
+            android:exported="false"
+            android:label="@string/settings_watchface_canvas_section"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <!-- R18 首次使用路径：欢迎 → 选择模式 → 默认桌面引导。只由本应用启动。 -->
+        <activity
+            android:name="com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".CrashActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <service
+            android:name=".service.WLauncherNotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".service.FlueAccessibilityService"
+            android:exported="true"
+            android:label="@string/flue_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/flue_accessibility_service" />
+        </service>
+
+        <receiver
+            android:name=".service.FlueDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/flue_device_admin" />
+        </receiver>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>
