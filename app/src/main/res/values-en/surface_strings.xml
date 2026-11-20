@@ -49,4 +49,30 @@
     <string name="onboarding_home_skip_hint">If you skip, the Home key may go to the system or another desktop. You can set it later in Settings → Desktop mode.</string>
     <string name="onboarding_home_skip_confirm">Skip anyway</string>
     <string name="onboarding_full_hint">You can enter the disguise desktop in Settings → Desktop mode</string>
+    <!-- 显示适配（R23–R25） -->
+    <string name="screen_fit_title">Screen fit</string>
+    <string name="screen_fit_subtitle">Safe area and app DPI</string>
+    <string name="safe_area_title">Safe area</string>
+    <string name="safe_area_summary">W %1$s%% · H %2$s%% · Corner %3$s%%</string>
+    <string name="safe_area_hint">Move the outline to where the screen is fully visible. Keep it close to the edge; a small margin is fine.</string>
+    <string name="safe_area_width">Width</string>
+    <string name="safe_area_height">Height</string>
+    <string name="safe_area_corner">Corner</string>
+    <string name="safe_area_pixels">%1$d × %2$d px · corner %3$d px</string>
+    <string name="app_dpi_title">App DPI</string>
+    <string name="app_dpi_summary">Current %1$d · default %2$d</string>
+    <string name="app_dpi_hint">Changes the size of FFlue only. System DPI and other apps are not affected.</string>
+    <string name="app_dpi_value">%1$d DPI</string>
+    <string name="app_dpi_preview">Preview</string>
+    <string name="app_dpi_preview_item">Sample setting</string>
+    <string name="app_dpi_preview_item_sub">Shown at the DPI being adjusted</string>
+    <string name="app_dpi_preview_button">Button</string>
+    <string name="display_restore_default">Restore default</string>
+    <string name="display_cancel">Cancel</string>
+    <string name="display_save">Save</string>
+    <string name="display_save_failed">Couldn\'t save</string>
+    <string name="display_exact_value">Exact value</string>
+    <string name="display_input_invalid">Range %1$s</string>
+    <string name="search_d_screen_fit">Safe area, app DPI, round screen margins</string>
+    <string name="surface_screen_fit_entry_sub">Safe area and app DPI, shared by full and disguise desktops</string>
 </resources>

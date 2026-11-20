@@ -4,6 +4,10 @@ import com.flue.launcher.surface.SurfaceRuntime
 import com.flue.launcher.surface.access.FeatureAccessPolicy
 import com.flue.launcher.surface.access.SurfaceFeature
 import com.flue.launcher.surface.ui.SurfaceModeSettingsPage
+import com.flue.launcher.surface.ui.ScreenFitPage
+import com.flue.launcher.surface.ui.SafeAreaCalibrationPage
+import com.flue.launcher.surface.ui.AppDpiCalibrationPage
+import com.flue.launcher.surface.display.DisplayAdaptation
 import com.flue.launcher.surface.ui.labelRes
 import androidx.compose.ui.res.stringResource
 import com.flue.launcher.i18n.FlueComponentActivity
@@ -319,6 +323,7 @@ const val EXTRA_SETTINGS_RETURN_TO_FACE = "settings_return_to_face"
 const val SETTINGS_DESTINATION_WATCH_FACES = "watch_faces"
 const val SETTINGS_DESTINATION_TOOLS = "tools"
 const val SETTINGS_DESTINATION_AGENT = "agent"
+const val SETTINGS_DESTINATION_SCREEN_FIT = "screen_fit"
 private val LocalSettingsLeftSafeInsetPercent = compositionLocalOf { 0 }
 private val LocalSettingsRotaryHapticsEnabled = compositionLocalOf { true }
 
@@ -347,6 +352,9 @@ enum class SettingsDestination {
     ICON_PACKS,
     APPEARANCE,
     DISPLAY_SIZE,
+    SCREEN_FIT,
+    SAFE_AREA,
+    APP_DPI,
     AOD,
     FEATURE_TOGGLES,
     SIDE_SCREEN,
@@ -498,6 +506,7 @@ class SettingsActivity : FlueComponentActivity() {
             SETTINGS_DESTINATION_WATCH_FACES -> SettingsDestination.WATCH_FACES
             SETTINGS_DESTINATION_TOOLS -> SettingsDestination.TOOLS
             SETTINGS_DESTINATION_AGENT -> SettingsDestination.AGENT
+            SETTINGS_DESTINATION_SCREEN_FIT -> SettingsDestination.SCREEN_FIT
             else -> SettingsDestination.ROOT
         }
         return SettingsLaunchConfig(
@@ -1891,7 +1900,25 @@ private fun SettingsRootScreen(
                 // 伪装模式下通过外部 Intent 或旧返回栈进入时直接退回（R08）。
                 LaunchedEffect(Unit) { handleBack() }
             }
-            SettingsDestination.SURFACE -> SurfaceModeSettingsPage(onBack = { handleBack() })
+            SettingsDestination.SURFACE -> SurfaceModeSettingsPage(
+                onBack = { handleBack() },
+                onOpenScreenFit = { navigateTo(SettingsDestination.SCREEN_FIT) },
+            )
+            SettingsDestination.SCREEN_FIT -> ScreenFitPage(
+                onBack = { handleBack() },
+                onOpenSafeArea = { navigateTo(SettingsDestination.SAFE_AREA) },
+                onOpenAppDpi = { navigateTo(SettingsDestination.APP_DPI) },
+            )
+            SettingsDestination.SAFE_AREA -> SafeAreaCalibrationPage(onBack = { handleBack() })
+            SettingsDestination.APP_DPI -> AppDpiCalibrationPage(
+                onBack = { handleBack() },
+                onSaved = {
+                    // 重建后回到屏幕适配页，而不是设置首页。
+                    (context as? android.app.Activity)?.intent
+                        ?.putExtra(EXTRA_SETTINGS_DESTINATION, SETTINGS_DESTINATION_SCREEN_FIT)
+                    DisplayAdaptation.recreateAll()
+                },
+            )
             SettingsDestination.WATCH_FACES -> SettingsPageScaffold(
             title = stringResource(R.string.settings_watchfaces),
             onBack = { handleBack() },
@@ -3263,6 +3290,14 @@ private fun SettingsRootScreen(
             initialFirstVisibleItemScrollOffset = scrollFor(SettingsDestination.DISPLAY_SIZE).offset,
             onScrollChanged = { index, offset -> updateScroll(SettingsDestination.DISPLAY_SIZE, index, offset) }
         ) { listState, screenCenterY, screenHeightPx, _ ->
+            item("screen_fit") {
+                SettingsCategoryCard(
+                    title = stringResource(R.string.screen_fit_title),
+                    subtitle = stringResource(R.string.screen_fit_subtitle),
+                    onClick = { navigateTo(SettingsDestination.SCREEN_FIT) },
+                    scale = itemFisheye(listState, "screen_fit", screenCenterY, screenHeightPx),
+                )
+            }
             flueSettingsGroup {
                 row("global_ui_scale") { position ->
                     SettingsSliderRow(
@@ -7905,6 +7940,9 @@ internal fun buildSettingsSearchIndex(context: Context): List<SettingsSearchEntr
     SettingsSearchEntry("DISPLAY_SIZE", null, s(R.string.settings_display_fit), s(R.string.search_d_display_size), listOf("xssp", "size", "daxiao", "fisheye", "yuyan")),
     SettingsSearchEntry("AOD", null, s(R.string.aod_title), s(R.string.aod_description), listOf("aod", "xiping", "ambient", "息屏")),
     SettingsSearchEntry("AOD", "aod_enabled", s(R.string.aod_title), s(R.string.aod_description), listOf("aod", "brightness", "timeout", "息屏", "亮度")),
+    SettingsSearchEntry("DISPLAY_SIZE", "screen_fit", s(R.string.screen_fit_title), s(R.string.search_d_screen_fit), listOf("pmsp", "screen fit", "pingmu", "shipei")),
+    SettingsSearchEntry("SAFE_AREA", null, s(R.string.safe_area_title), s(R.string.search_d_screen_fit), listOf("aqq", "safe area", "anquanqu", "yuanjiao")),
+    SettingsSearchEntry("APP_DPI", null, s(R.string.app_dpi_title), s(R.string.app_dpi_hint), listOf("dpi", "midu", "density", "yydpi")),
     SettingsSearchEntry("DISPLAY_SIZE", "global_ui_scale", s(R.string.settings_global_ui_size), s(R.string.search_d_global_ui_scale), listOf("qjdx", "scale", "suofang")),
     SettingsSearchEntry("DISPLAY_SIZE", "honeycomb_cols", s(R.string.settings_honeycomb_cols), s(R.string.search_d_honeycomb_cols), listOf("fwls", "columns", "lieshu")),
     SettingsSearchEntry("DISPLAY_SIZE", "app_list_scale", s(R.string.settings_app_list_size), s(R.string.search_d_app_list_scale), listOf("lbdx", "app list size")),

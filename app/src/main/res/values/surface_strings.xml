@@ -49,4 +49,30 @@
     <string name="onboarding_home_skip_hint">跳过后，按 Home 键可能回到系统或其他桌面。可以稍后在 设置 → 桌面模式 中设置。</string>
     <string name="onboarding_home_skip_confirm">仍然跳过</string>
     <string name="onboarding_full_hint">可以在 设置 → 桌面模式 中进入伪装桌面</string>
+    <!-- 显示适配（R23–R25） -->
+    <string name="screen_fit_title">屏幕适配</string>
+    <string name="screen_fit_subtitle">安全区与应用 DPI</string>
+    <string name="safe_area_title">安全区</string>
+    <string name="safe_area_summary">宽 %1$s%% · 高 %2$s%% · 圆角 %3$s%%</string>
+    <string name="safe_area_hint">把边框调到屏幕上完整可见的位置，尽量贴近边缘，可留少量余量</string>
+    <string name="safe_area_width">宽</string>
+    <string name="safe_area_height">高</string>
+    <string name="safe_area_corner">圆角</string>
+    <string name="safe_area_pixels">%1$d × %2$d px · 圆角 %3$d px</string>
+    <string name="app_dpi_title">应用 DPI</string>
+    <string name="app_dpi_summary">当前 %1$d · 默认 %2$d</string>
+    <string name="app_dpi_hint">只改变 FFlue 的界面大小，不修改系统 DPI，也不影响其他应用</string>
+    <string name="app_dpi_value">%1$d DPI</string>
+    <string name="app_dpi_preview">预览</string>
+    <string name="app_dpi_preview_item">示例设置项</string>
+    <string name="app_dpi_preview_item_sub">按调整中的 DPI 显示</string>
+    <string name="app_dpi_preview_button">按钮</string>
+    <string name="display_restore_default">恢复默认</string>
+    <string name="display_cancel">取消</string>
+    <string name="display_save">保存</string>
+    <string name="display_save_failed">保存失败</string>
+    <string name="display_exact_value">精确数值</string>
+    <string name="display_input_invalid">范围 %1$s</string>
+    <string name="search_d_screen_fit">安全区、应用 DPI、圆屏边距</string>
+    <string name="surface_screen_fit_entry_sub">安全区与应用 DPI，完整和伪装桌面共用</string>
 </resources>

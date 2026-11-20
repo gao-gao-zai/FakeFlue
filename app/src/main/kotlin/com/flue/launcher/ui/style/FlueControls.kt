@@ -1,6 +1,7 @@
 package com.flue.launcher.ui.style
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -141,6 +142,7 @@ fun FlueTextField(
     enabled: Boolean = true,
     singleLine: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
         androidx.compose.ui.text.input.VisualTransformation.None,
     placeholder: String? = null,
@@ -161,6 +163,7 @@ fun FlueTextField(
         maxLines = maxLines,
         isError = isError,
         keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
         label = label?.let { { Text(it) } },
         placeholder = placeholder?.let { { Text(it) } },
