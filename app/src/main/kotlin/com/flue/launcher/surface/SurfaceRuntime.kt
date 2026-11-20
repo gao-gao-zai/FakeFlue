@@ -18,6 +18,16 @@ import com.flue.launcher.surface.mode.SurfaceModeController
 import com.flue.launcher.surface.mode.SurfaceStateStore
 import com.flue.launcher.viewmodel.dataStore
 import kotlinx.coroutines.flow.first
+import com.flue.launcher.surface.apps.PublicAppRules
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * FFlue 模式内核的进程级单例：模式控制器、按模式投影的设置存储与页面守卫。
@@ -42,6 +52,44 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     /** 原版代码读写 `launcher_settings` 时应使用的存储（R06）。 */
     val launcherSettings: DataStore<Preferences> = ModeScopedDataStore(app.dataStore, controller.configScope)
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * 当前模式的公开应用白名单（R10）：完整／外部模式为 null（不限制），伪装模式为已选应用。
+     * 冷启动在伪装模式时先按空集合处理，避免设置读出来之前露出全部应用。
+     */
+    val publicApps: StateFlow<Set<String>?> = combine(app.dataStore.data, controller.configScope) { prefs, scope ->
+        if (scope == ConfigScope.DISGUISE) {
+            val name = LauncherSettingsScopes.physicalName(PublicAppRules.KEY, ConfigScope.DISGUISE)
+            PublicAppRules.parse(prefs[stringPreferencesKey(name)])
+        } else {
+            null
+        }
+    }
+        .stateIn(
+            scope,
+            SharingStarted.Eagerly,
+            if (controller.configScope.value == ConfigScope.DISGUISE) emptySet() else null,
+        )
+
+    /** 按包名判断当前模式是否允许展示或启动该应用（R08、R11）。 */
+    fun isPackagePublic(packageName: String?): Boolean =
+        PublicAppRules.isPackagePublic(packageName, publicApps.value, app.packageName)
+
+    /** 保存伪装模式的公开应用白名单（只在伪装配置里写）。 */
+    suspend fun savePublicApps(entries: Set<String>) {
+        app.dataStore.edit { prefs ->
+            prefs[stringPreferencesKey(LauncherSettingsScopes.physicalName(PublicAppRules.KEY, ConfigScope.DISGUISE))] =
+                PublicAppRules.serialize(entries)
+        }
+    }
+
+    /** 读伪装模式的公开应用白名单，不论当前模式（管理页在完整模式下也能配置）。 */
+    suspend fun disguisePublicApps(): Set<String> {
+        val name = LauncherSettingsScopes.physicalName(PublicAppRules.KEY, ConfigScope.DISGUISE)
+        return PublicAppRules.parse(app.dataStore.data.first()[stringPreferencesKey(name)])
+    }
 
     /**
      * 桌面 Activity 收到启动 Intent 时调用。
@@ -97,6 +145,10 @@ class SurfaceRuntime private constructor(private val app: Application) {
         }
     }
 }
+
+/** 当前模式是否允许使用该功能（R08）；伪装模式下不公开的功能入口和执行点都用它判断。 */
+fun Context.surfaceAllows(feature: com.flue.launcher.surface.access.SurfaceFeature): Boolean =
+    com.flue.launcher.surface.access.FeatureAccessPolicy.isAllowed(SurfaceRuntime.get(this).controller.mode.value, feature)
 
 /** 按当前模式投影的 `launcher_settings`；原版里 `context.dataStore` 的模式感知替代品。 */
 val Context.launcherSettings: DataStore<Preferences>

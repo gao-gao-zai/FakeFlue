@@ -1,6 +1,7 @@
 ﻿package com.flue.launcher.data.repository
 
 import android.content.ActivityNotFoundException
+import com.flue.launcher.surface.apps.PublicAppRules
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -101,6 +102,15 @@ class AppRepository(private val context: Context) {
     private val _apps = MutableStateFlow<List<AppInfo>>(emptyList())
     val apps: StateFlow<List<AppInfo>> = _apps.asStateFlow()
 
+    // FFlue R10：伪装模式只公开白名单里的应用。下面两份是 [allApps] / [allSelectableApps]
+    // 按白名单筛过的版本（不套隐藏集），供文件夹编辑、侧屏快捷项、小组件页使用；
+    // 完整模式没有白名单，与原值相同。
+    private val _modeAllApps = MutableStateFlow<List<AppInfo>>(emptyList())
+    val modeAllApps: StateFlow<List<AppInfo>> = _modeAllApps.asStateFlow()
+
+    private val _modeAllSelectableApps = MutableStateFlow<List<AppInfo>>(emptyList())
+    val modeAllSelectableApps: StateFlow<List<AppInfo>> = _modeAllSelectableApps.asStateFlow()
+
     private data class CustomOrderSnapshot(
         val order: List<String>,
         val indexByKey: Map<String, Int>,
@@ -112,6 +122,7 @@ class AppRepository(private val context: Context) {
         indexByKey = emptyMap(),
     )
     private var hiddenComponents: Set<String> = emptySet()
+    private var publicWhitelist: Set<String>? = null
     private var currentIconSize = 128
     private var iconPackPackage: String? = null
     private var useLegacyCircularIcons = true
@@ -216,6 +227,13 @@ class AppRepository(private val context: Context) {
     fun setHiddenComponents(components: Set<String>) {
         if (hiddenComponents == components) return
         hiddenComponents = components
+        applyFilters()
+    }
+
+    /** null 表示不限制（完整模式）；否则只公开内置入口和集合里的组件或包名（伪装模式，R10）。 */
+    fun setPublicWhitelist(whitelist: Set<String>?) {
+        if (publicWhitelist == whitelist) return
+        publicWhitelist = whitelist
         applyFilters()
     }
 
@@ -1654,12 +1672,14 @@ class AppRepository(private val context: Context) {
     }
 
     private fun applyFilters() {
-        _apps.value = _allApps.value.mapNotNull(::visibleAppListItem)
+        _apps.value = _allApps.value.mapNotNull { visibleAppListItem(it, ::isHiddenApp) }
+        _modeAllApps.value = _allApps.value.mapNotNull { visibleAppListItem(it, ::isNotPublic) }
+        _modeAllSelectableApps.value = _allSelectableApps.value.filterNot(::isNotPublic)
     }
 
-    private fun visibleAppListItem(app: AppInfo): AppInfo? {
-        if (!app.isFolder) return app.takeUnless(::isHiddenApp)
-        val visibleChildren = app.folderItemKeys.mapNotNull(catalogData.items::get).filterNot(::isHiddenApp)
+    private fun visibleAppListItem(app: AppInfo, excluded: (AppInfo) -> Boolean): AppInfo? {
+        if (!app.isFolder) return app.takeUnless(excluded)
+        val visibleChildren = app.folderItemKeys.mapNotNull(catalogData.items::get).filterNot(excluded)
         if (visibleChildren.isEmpty()) return null
         if (visibleChildren.map { it.componentKey } == app.folderItemKeys) return app
         return createFolderEntry(
@@ -1675,6 +1695,13 @@ class AppRepository(private val context: Context) {
 
     private fun isHiddenApp(app: AppInfo): Boolean {
         if (app.isFolder) return false
-        return hiddenComponents.contains(app.componentKey) || hiddenComponents.contains(app.packageName)
+        return isNotPublic(app) ||
+            hiddenComponents.contains(app.componentKey) || hiddenComponents.contains(app.packageName)
+    }
+
+    private fun isNotPublic(app: AppInfo): Boolean {
+        if (app.isFolder) return false
+        val whitelist = publicWhitelist ?: return false
+        return !PublicAppRules.isPublic(app.componentKey, app.packageName, app.isBuiltInSettingsEntry, whitelist)
     }
 }

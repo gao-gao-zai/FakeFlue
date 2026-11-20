@@ -73,7 +73,11 @@ internal fun WatchAppPickerDialog(
     var apps by remember { mutableStateOf<List<InstalledLaunchableApp>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        apps = withContext(Dispatchers.IO) { InstalledLaunchableAppCache.load(context) }
+        // R10：伪装模式只列公开应用（表盘点击动作、编辑器里的应用选择都走这里）。
+        val surface = com.flue.launcher.surface.SurfaceRuntime.get(context)
+        apps = withContext(Dispatchers.IO) {
+            InstalledLaunchableAppCache.load(context).filter { surface.isPackagePublic(it.packageName) }
+        }
     }
     val filtered = remember(apps, query) {
         if (query.isBlank()) {

@@ -1,6 +1,8 @@
 package com.flue.launcher
 
 import com.flue.launcher.surface.SurfaceRuntime
+import com.flue.launcher.surface.access.SurfaceFeature
+import com.flue.launcher.surface.surfaceAllows
 import com.flue.launcher.surface.config.WatchFaceCopyOnWrite
 import com.flue.launcher.i18n.FlueComponentActivity
 
@@ -692,6 +694,10 @@ private fun WatchEditorRoute(
 
     fun requestExportOptions(toDirectory: Boolean) {
         if (busyMessage != null || session == null || snapshot == null) return
+        if (!context.surfaceAllows(SurfaceFeature.WATCH_FACE_EXPORT)) {
+            Toast.makeText(context, R.string.surface_feature_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
         pendingExportToDirectory = toDirectory
         showExportOptions = true
     }
@@ -1262,6 +1268,11 @@ private fun WatchEditorRoute(
     }
 
     fun openInternalFileBrowser(kind: EditorInternalImportKind) {
+        // R08：伪装模式不公开内部文件浏览，导入走系统选择器。
+        if (!context.surfaceAllows(SurfaceFeature.FILE_MANAGER)) {
+            Toast.makeText(context, R.string.surface_feature_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
         if (kind == EditorInternalImportKind.VIDEO &&
             !WatchEditorVideoImporter.isRuntimeSupported()
         ) {
@@ -1316,6 +1327,10 @@ private fun WatchEditorRoute(
     }
 
     fun beginExport(protectedExport: Boolean, toDirectory: Boolean) {
+        if (!context.surfaceAllows(SurfaceFeature.WATCH_FACE_EXPORT)) {
+            Toast.makeText(context, R.string.surface_feature_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
         pendingExportProtected = protectedExport
         pendingExportToDirectory = toDirectory
         showExportOptions = false
@@ -1850,6 +1865,7 @@ private fun WatchEditorRoute(
                         onDispose { agentViewModel.unbindToolHost(agentToolHost) }
                     }
                     fun openAgentFromEditor() {
+                        if (!context.surfaceAllows(SurfaceFeature.AGENT)) return
                         if (pendingAgentContinuation != null) {
                             showAgentContinuationDialog = true
                         } else {
@@ -2254,7 +2270,9 @@ private fun WatchEditorRoute(
                             })
                         },
                         onEditGlobalScript = {
-                            if (busyMessage == null) {
+                            if (!context.surfaceAllows(SurfaceFeature.SCRIPT_EDITOR)) {
+                                Toast.makeText(context, R.string.surface_feature_unavailable, Toast.LENGTH_SHORT).show()
+                            } else if (busyMessage == null) {
                                 scope.launch {
                                     runCatching {
                                         withContext(Dispatchers.IO) { active.globalScript() }
@@ -2651,10 +2669,15 @@ private fun WatchEditorScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val agentFeatureStore = remember(context) { AgentFeatureSettingsStore(context) }
-    var agentEnabled by remember { mutableStateOf(agentFeatureStore.load().enabled) }
+    // R08：伪装模式不公开 Agent，等同关闭。
+    var agentEnabled by remember {
+        mutableStateOf(agentFeatureStore.load().enabled && context.surfaceAllows(SurfaceFeature.AGENT))
+    }
     DisposableEffect(lifecycleOwner, agentFeatureStore) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) agentEnabled = agentFeatureStore.load().enabled
+            if (event == Lifecycle.Event.ON_RESUME) {
+                agentEnabled = agentFeatureStore.load().enabled && context.surfaceAllows(SurfaceFeature.AGENT)
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -3768,7 +3791,7 @@ private fun WatchEditorScreen(
                             }
                         }
                     }
-                    item("watch_global_script") {
+                    if (context.surfaceAllows(SurfaceFeature.SCRIPT_EDITOR)) item("watch_global_script") {
                         Surface(
                             modifier = Modifier.chordScaleItem(
                                 listState = watchListState,
@@ -3914,7 +3937,7 @@ private fun WatchEditorScreen(
                                 ),
                         )
                     }
-                    item("wftools_promo") {
+                    if (context.surfaceAllows(SurfaceFeature.WATCH_STORE)) item("wftools_promo") {
                         WfToolsPromoRow(
                             modifier = Modifier.chordScaleItem(
                                 listState = watchListState,
@@ -3957,7 +3980,7 @@ private fun WatchEditorScreen(
                 )
             }
         }
-        if (agentState.surface == com.flue.launcher.watchface.agent.model.AgentSurface.FULLSCREEN) {
+        if (agentEnabled && agentState.surface == com.flue.launcher.watchface.agent.model.AgentSurface.FULLSCREEN) {
             WatchAgentFullscreen(
                 viewModel = agentViewModel,
                 onRestore = { agentViewModel.exitFullscreen() },

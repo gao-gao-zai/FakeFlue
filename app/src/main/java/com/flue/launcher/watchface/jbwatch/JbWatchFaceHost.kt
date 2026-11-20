@@ -1629,7 +1629,7 @@ private fun launchJbWatchTapAction(context: Context, action: String, rootDir: Fi
     return when {
         normalized.startsWith("widget_calendar") -> {
             runCatching {
-                context.startActivity(Intent(Intent.ACTION_MAIN).apply {
+                startJbTapActivity(context, Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_APP_CALENDAR)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 })
@@ -1637,7 +1637,7 @@ private fun launchJbWatchTapAction(context: Context, action: String, rootDir: Fi
         }
         normalized.startsWith("widget_weather") || normalized.startsWith("m_update_weather") -> {
             runCatching {
-                context.startActivity(Intent(Intent.ACTION_MAIN).apply {
+                startJbTapActivity(context, Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_APP_WEATHER)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 })
@@ -1694,7 +1694,7 @@ private fun launchJbWatchAppAction(context: Context, appAction: JbWatchAppAction
     // 后续安全清理中把它当作疏漏再次收掉。exported 组件本就允许第三方
     // 拉起，风险边界与普通启动器快捷方式一致。
     val launchedComponent = runCatching {
-        context.startActivity(Intent().apply {
+        startJbTapActivity(context, Intent().apply {
             component = ComponentName(appAction.packageName, appAction.className)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
@@ -1705,10 +1705,22 @@ private fun launchJbWatchAppAction(context: Context, appAction: JbWatchAppAction
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }?.let { intent ->
         runCatching {
-            context.startActivity(intent)
+            startJbTapActivity(context, intent)
             true
         }.getOrDefault(false)
     } == true
+}
+
+/**
+ * JB 表盘点击动作的启动出口。伪装模式下目标不是公开应用时不启动（R08、R10），
+ * 提示后按“已处理”返回，不再落到别的兜底启动。
+ */
+private fun startJbTapActivity(context: Context, intent: Intent) {
+    if (!com.flue.launcher.surface.apps.SurfaceLaunchGate.allows(context, intent)) {
+        android.widget.Toast.makeText(context, com.flue.launcher.R.string.surface_feature_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
+    context.startActivity(intent)
 }
 
 private fun normalizeJbTapAction(raw: String): String {

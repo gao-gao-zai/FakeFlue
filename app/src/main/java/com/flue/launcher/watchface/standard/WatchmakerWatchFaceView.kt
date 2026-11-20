@@ -6449,8 +6449,20 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
             ?: return false
         performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         return runCatching {
-            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            startTapActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }.isSuccess
+    }
+
+    /**
+     * 点击动作的唯一启动出口。伪装模式下目标不是公开应用时不启动（R08、R10），
+     * 只提示当前模式不可用，不抛异常，避免落到“无法打开目标应用”。
+     */
+    private fun startTapActivity(intent: Intent) {
+        if (!com.flue.launcher.surface.apps.SurfaceLaunchGate.allows(context, intent)) {
+            Toast.makeText(context, R.string.surface_feature_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        context.startActivity(intent)
     }
 
     private fun routeTapAction(action: WatchTapAction, rawAction: String = "") {
@@ -6545,7 +6557,7 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
                 // 刻意**不给** EXTRA_SKIP_UI：表盘上误触一下就静默建一个闹钟太惊悚，
                 // 让时钟应用带着预填时间打开，用户按一下确认。
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            runCatching { context.startActivity(intent) }.onFailure {
+            runCatching { startTapActivity(intent) }.onFailure {
                 Toast.makeText(context, "没有可用的时钟应用", Toast.LENGTH_SHORT).show()
             }
             return
@@ -6558,7 +6570,7 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
             // 猜系统默认只是没设置时的兜底。
             WatchTapActionMappings.of(context).launchIntent(context, action.value)?.let { mapped ->
                 runCatching {
-                    context.startActivity(mapped.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    startTapActivity(mapped.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
                 return
             }
@@ -6577,7 +6589,7 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
                 return
             }
             runCatching {
-                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                startTapActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }.onFailure {
                 Toast.makeText(
                     context,
@@ -6643,7 +6655,7 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
             return
         }
         runCatching {
-            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            startTapActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }.onFailure {
             Toast.makeText(context, "无法打开目标应用", Toast.LENGTH_SHORT).show()
         }

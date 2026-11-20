@@ -61,7 +61,14 @@ class FlueRepositories(context: Context) {
 
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val sharedState = SharedLauncherState()
-    val appRepository: AppRepository by lazy { AppRepository(appContext) }
+    val appRepository: AppRepository by lazy {
+        AppRepository(appContext).also { repository ->
+            // R10：应用列表跟随当前模式的公开白名单（完整模式为 null，不限制）。
+            val publicApps = com.flue.launcher.surface.SurfaceRuntime.get(appContext).publicApps
+            repository.setPublicWhitelist(publicApps.value)
+            applicationScope.launch { publicApps.collect(repository::setPublicWhitelist) }
+        }
+    }
     val widgetRepository: WidgetRepository by lazy { WidgetRepository(appContext) }
     internal val widgetRefreshCoordinator by lazy { com.flue.launcher.widget.WidgetRefreshCoordinator(appContext) }
     val appWidgetHost: AppWidgetHost by lazy {

@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +27,11 @@ import com.flue.launcher.ui.settings.agent.AgentSettingsScreen
  * “完整设置”（进入设置页）和“恢复完整桌面”（切换模式）是两个不同操作，这里只放后者。
  */
 @Composable
-internal fun SurfaceModeSettingsPage(onBack: () -> Unit, onOpenScreenFit: () -> Unit) {
+internal fun SurfaceModeSettingsPage(
+    onBack: () -> Unit,
+    onOpenScreenFit: () -> Unit,
+    onOpenPublicApps: () -> Unit,
+) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
     val controller = runtime.controller
@@ -42,6 +47,8 @@ internal fun SurfaceModeSettingsPage(onBack: () -> Unit, onOpenScreenFit: () -> 
         if (pickerOpen) SurfaceHome.externalHomeCandidates(context) else emptyList()
     }
     val defaultHome = remember(resumeTick, mode) { context.defaultHomeDescription() }
+    var publicCount by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(resumeTick) { publicCount = runtime.disguisePublicApps().size }
 
     fun switch(target: SurfaceMode) {
         context.reportModeSwitch(controller.switchTo(target), target)
@@ -83,6 +90,16 @@ internal fun SurfaceModeSettingsPage(onBack: () -> Unit, onOpenScreenFit: () -> 
                     subtitle = externalTarget?.let(context::homeLabel)
                         ?: stringResource(R.string.surface_external_target_none),
                     onClick = { switch(SurfaceMode.EXTERNAL) },
+                    last = true,
+                )
+            }
+        }
+        item(key = "surface_disguise") {
+            AgentSettingsGroup(stringResource(R.string.surface_mode_disguise)) {
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_public_apps_title),
+                    subtitle = publicCount?.let { stringResource(R.string.surface_public_apps_entry_sub, it) },
+                    onClick = onOpenPublicApps,
                     last = true,
                 )
             }

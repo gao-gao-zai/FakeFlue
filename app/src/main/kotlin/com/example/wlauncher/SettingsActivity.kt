@@ -344,6 +344,7 @@ enum class SettingsDestination {
     WATCH_FACES,
     AGENT,
     SURFACE,
+    PUBLIC_APPS,
     WATCH_FACE_MORE,
     TAP_ACTION_CATEGORIES,
     TAP_ACTION_CATEGORY,
@@ -1530,7 +1531,11 @@ private fun SettingsRootScreen(
 
     var settingsSearchQuery by remember { mutableStateOf("") }
     // 索引文案走 strings.xml，语言切换会重建 Activity，remember(context) 足够。
-    val searchIndex = remember(context) { buildSettingsSearchIndex(context) }
+    val searchIndex = remember(context, surfaceMode) {
+        buildSettingsSearchIndex(context).filter {
+            com.flue.launcher.surface.access.SettingsSearchGate.isVisible(surfaceMode, it.destinationName, it.itemKey)
+        }
+    }
     val selectedIconPackLabel = availableIconPacks.firstOrNull { it.packageName == selectedIconPackPackage }?.label
 
 
@@ -1903,7 +1908,12 @@ private fun SettingsRootScreen(
             SettingsDestination.SURFACE -> SurfaceModeSettingsPage(
                 onBack = { handleBack() },
                 onOpenScreenFit = { navigateTo(SettingsDestination.SCREEN_FIT) },
+                onOpenPublicApps = { navigateTo(SettingsDestination.PUBLIC_APPS) },
             )
+            SettingsDestination.PUBLIC_APPS -> {
+                val catalogApps by vm.catalogApps.collectAsStateWithLifecycle()
+                com.flue.launcher.surface.ui.PublicAppPickerPage(apps = catalogApps, onBack = { handleBack() })
+            }
             SettingsDestination.SCREEN_FIT -> ScreenFitPage(
                 onBack = { handleBack() },
                 onOpenSafeArea = { navigateTo(SettingsDestination.SAFE_AREA) },
@@ -4792,7 +4802,7 @@ private fun SettingsRootScreen(
                         groupPosition = position,
                     )
                 }
-                row("watch_store_preview_cache") { position ->
+                if (FeatureAccessPolicy.isAllowed(surfaceMode, SurfaceFeature.WATCH_STORE)) row("watch_store_preview_cache") { position ->
                     ActionCard(
                         title = stringResource(R.string.settings_clear_watch_store_cache),
                         subtitle = stringResource(R.string.settings_clear_watch_store_cache_sub),
@@ -4819,7 +4829,7 @@ private fun SettingsRootScreen(
                         groupPosition = position,
                     )
                 }
-                row("watch_store_market_url") { position ->
+                if (FeatureAccessPolicy.isAllowed(surfaceMode, SurfaceFeature.WATCH_STORE)) row("watch_store_market_url") { position ->
                     ActionCard(
                         title = stringResource(R.string.settings_watch_store_market_url),
                         subtitle = watchStoreUiPreferences.readBaseUrl(),
@@ -5114,7 +5124,9 @@ private fun SettingsRootScreen(
                 onBack = { handleBack() },
                 onCrash = { error("Flue debug crash") },
             )
-            SettingsDestination.DONATE -> SettingsPageScaffold(
+            SettingsDestination.DONATE -> if (!FeatureAccessPolicy.isAllowed(surfaceMode, SurfaceFeature.WATCH_STORE)) {
+                LaunchedEffect(Unit) { handleBack() }
+            } else SettingsPageScaffold(
                 title = stringResource(R.string.settings_donate_title),
                 onBack = { handleBack() },
                 headerTime = headerTime,

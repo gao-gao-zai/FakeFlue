@@ -31,9 +31,10 @@ fun watchFaceCardCapabilities(
 object WatchFaceCardReducer {
     const val STORE_ID = "flue:watch-face-store"
 
-    fun items(faceIds: List<String>): List<WatchFaceCardItem> = buildList {
+    /** @param includeStore 伪装模式不公开表盘市场（R08），不加商店卡。 */
+    fun items(faceIds: List<String>, includeStore: Boolean = true): List<WatchFaceCardItem> = buildList {
         faceIds.distinct().forEach { add(WatchFaceCardItem(stableId = it)) }
-        add(WatchFaceCardItem(stableId = STORE_ID, isStore = true))
+        if (includeStore) add(WatchFaceCardItem(stableId = STORE_ID, isStore = true))
     }
 
     fun initialPage(items: List<WatchFaceCardItem>, selectedFaceId: String): Int =
@@ -54,8 +55,9 @@ object WatchFaceCardReducer {
         deletedStableId: String,
         previousItems: List<WatchFaceCardItem>,
         remainingFaceIds: List<String>,
+        includeStore: Boolean = true,
     ): WatchFaceCardState {
-        val remainingItems = items(remainingFaceIds)
+        val remainingItems = items(remainingFaceIds, includeStore)
         val remainingFaces = remainingItems.filterNot { it.isStore }
         val previousFaces = previousItems.filterNot { it.isStore }
         val deletedIndex = previousFaces.indexOfFirst { it.stableId == deletedStableId }
@@ -63,7 +65,7 @@ object WatchFaceCardReducer {
         val nearestIndex = deletedIndex.coerceAtMost(remainingFaces.lastIndex)
         val nearest = remainingFaces.getOrNull(nearestIndex)?.stableId
             ?: remainingFaces.firstOrNull()?.stableId
-            ?: STORE_ID
+            ?: if (includeStore) STORE_ID else BUILT_IN_WATCHFACE_ID
         return WatchFaceCardState(
             selectedFaceId = if (state.selectedFaceId == deletedStableId) {
                 BUILT_IN_WATCHFACE_ID

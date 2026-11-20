@@ -75,4 +75,16 @@
     <string name="display_input_invalid">Range %1$s</string>
     <string name="search_d_screen_fit">Safe area, app DPI, round screen margins</string>
     <string name="surface_screen_fit_entry_sub">Safe area and app DPI, shared by full and disguise desktops</string>
+    <string name="surface_public_apps_title">Public apps</string>
+    <string name="surface_public_apps_entry_sub">%1$d selected. The disguise desktop shows only built-in apps and these</string>
+    <string name="surface_public_apps_subtitle">The disguise desktop shows built-in apps and the apps selected here. Newly installed apps are not public by default</string>
+    <string name="surface_public_apps_search">Search name, initials or package</string>
+    <string name="surface_public_apps_search_scope_full">Search by name, pinyin or initials, or package name</string>
+    <string name="surface_public_apps_search_scope_basic">This Android version cannot convert Chinese to pinyin: search by name, Latin initials or package name</string>
+    <string name="surface_public_apps_sort_desktop">Desktop order</string>
+    <string name="surface_public_apps_sort_name">Name A–Z</string>
+    <string name="surface_public_apps_sort_selected">Selected first</string>
+    <string name="surface_public_apps_count">%1$d / %2$d selected</string>
+    <string name="surface_public_apps_empty">No matching apps</string>
+    <string name="surface_feature_unavailable">Not available in this mode</string>
 </resources>
