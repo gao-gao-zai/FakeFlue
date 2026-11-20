@@ -29,6 +29,8 @@ class AodController(
     },
     private val overlayAllowed: () -> Boolean = { Settings.canDrawOverlays(activity) },
     private val requestForeground: (Intent) -> Unit = { activity.startActivity(it) },
+    /** FFlue 此刻是否可以把自己拉回前台；外部桌面模式下为 false（R07）。 */
+    private val foregroundAllowed: () -> Boolean = { true },
 ) {
     companion object { const val EXTRA_AOD_FOREGROUND = "com.flue.launcher.AOD_FOREGROUND" }
     var ambientMode by mutableStateOf(false)
@@ -231,6 +233,7 @@ class AodController(
     }
 
     private fun onScreenOff() {
+        if (!foregroundAllowed()) return
         val action = aodScreenOffAction(config, charging, gesturesLocked, resumed || pausedForScreenOff || overlayAllowed())
         if (!active() || action == AodScreenOffAction.NONE) return
         val previousAmbient = ambientMode

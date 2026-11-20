@@ -20,13 +20,15 @@ class AodControllerTest {
         interactive: () -> Boolean = { true },
         overlay: () -> Boolean = { false },
         foreground: ((Intent) -> Unit)? = null,
+        foregroundAllowed: () -> Boolean = { true },
         block: (Activity, AodController) -> Unit,
     ) {
         shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(RuntimeEnvironment.getApplication().packageName + ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         AodPreferences.preferences(activity).edit().clear().putBoolean("enabled", true).commit()
         val controller = AodController(activity, {}, screenInteractive = interactive,
-            overlayAllowed = overlay, requestForeground = foreground ?: { activity.startActivity(it) })
+            overlayAllowed = overlay, requestForeground = foreground ?: { activity.startActivity(it) },
+            foregroundAllowed = foregroundAllowed)
         controller.start(); controller.onResume()
         try { block(activity, controller) } finally { controller.stop(); activity.finish() }
     }
@@ -110,6 +112,17 @@ class AodControllerTest {
             assertTrue(controller.ambientMode)
             controller.onResume()
             assertTrue(controller.gesturesLocked)
+        }
+    }
+
+    @Test fun externalDesktopModeNeverReclaimsScreenOnScreenOff() {
+        var starts = 0
+        withController(overlay = { true }, foreground = { starts++ }, foregroundAllowed = { false }) { activity, controller ->
+            controller.onPause()
+            activity.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF))
+            shadowOf(android.os.Looper.getMainLooper()).idle()
+            assertEquals(0, starts)
+            assertFalse(controller.ambientMode)
         }
     }
 

@@ -49,4 +49,30 @@
     <string name="onboarding_home_skip_hint">スキップすると、ホームキーでシステムや他のデスクトップに戻る場合があります。後で 設定 → デスクトップモード から設定できます。</string>
     <string name="onboarding_home_skip_confirm">それでもスキップ</string>
     <string name="onboarding_full_hint">設定 → デスクトップモード から偽装デスクトップに入れます</string>
+    <!-- 显示适配（R23–R25） -->
+    <string name="screen_fit_title">画面調整</string>
+    <string name="screen_fit_subtitle">セーフエリアとアプリ DPI</string>
+    <string name="safe_area_title">セーフエリア</string>
+    <string name="safe_area_summary">幅 %1$s%% · 高さ %2$s%% · 角丸 %3$s%%</string>
+    <string name="safe_area_hint">枠を画面全体が見える位置に合わせてください。端に近づけ、少しの余白は残してもかまいません</string>
+    <string name="safe_area_width">幅</string>
+    <string name="safe_area_height">高さ</string>
+    <string name="safe_area_corner">角丸</string>
+    <string name="safe_area_pixels">%1$d × %2$d px · 角丸 %3$d px</string>
+    <string name="app_dpi_title">アプリ DPI</string>
+    <string name="app_dpi_summary">現在 %1$d · 既定 %2$d</string>
+    <string name="app_dpi_hint">FFlue の表示サイズだけを変更します。システムの DPI やほかのアプリには影響しません</string>
+    <string name="app_dpi_value">%1$d DPI</string>
+    <string name="app_dpi_preview">プレビュー</string>
+    <string name="app_dpi_preview_item">設定の例</string>
+    <string name="app_dpi_preview_item_sub">調整中の DPI で表示</string>
+    <string name="app_dpi_preview_button">ボタン</string>
+    <string name="display_restore_default">既定に戻す</string>
+    <string name="display_cancel">キャンセル</string>
+    <string name="display_save">保存</string>
+    <string name="display_save_failed">保存できませんでした</string>
+    <string name="display_exact_value">正確な値</string>
+    <string name="display_input_invalid">範囲 %1$s</string>
+    <string name="search_d_screen_fit">セーフエリア、アプリ DPI、丸型画面の余白</string>
+    <string name="surface_screen_fit_entry_sub">セーフエリアとアプリ DPI。フルデスクトップと偽装デスクトップで共通</string>
 </resources>

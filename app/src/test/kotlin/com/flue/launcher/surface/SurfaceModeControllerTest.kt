@@ -147,6 +147,22 @@ class SurfaceModeControllerTest {
     }
 
     @Test
+    fun externalActionRelaunchesWhenAlreadyExternal() {
+        storage.target = "com.other.home/.Home"
+        assertEquals(ModeSwitchResult.Success, controller.switchTo(SurfaceMode.EXTERNAL))
+        // 从应用图标回到 FFlue 后再点“返回外部桌面”，或刚换了目标：要真的再打开一次。
+        effects.homes += "com.another.home/.Home"
+        storage.target = "com.another.home/.Home"
+        assertEquals(ModeSwitchResult.Success, controller.switchTo(SurfaceMode.EXTERNAL))
+        assertEquals("launch:com.another.home/.Home", effects.events.last())
+        assertEquals(SurfaceMode.EXTERNAL, controller.mode.value)
+
+        effects.launchSucceeds = false
+        assertEquals(ModeSwitchResult.Failed(FailureReason.EXTERNAL_LAUNCH_FAILED), controller.switchTo(SurfaceMode.EXTERNAL))
+        assertEquals(SurfaceMode.EXTERNAL, controller.mode.value)
+    }
+
+    @Test
     fun externalTargetCannotBeSelfBlankOrUnlaunchable() {
         effects.homes += "com.gaozai.surface/com.flue.launcher.LauncherActivity"
         assertFalse(controller.setExternalTarget("com.gaozai.surface/com.flue.launcher.LauncherActivity"))

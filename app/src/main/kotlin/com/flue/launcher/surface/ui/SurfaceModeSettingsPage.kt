@@ -26,7 +26,7 @@ import com.flue.launcher.ui.settings.agent.AgentSettingsScreen
  * “完整设置”（进入设置页）和“恢复完整桌面”（切换模式）是两个不同操作，这里只放后者。
  */
 @Composable
-internal fun SurfaceModeSettingsPage(onBack: () -> Unit) {
+internal fun SurfaceModeSettingsPage(onBack: () -> Unit, onOpenScreenFit: () -> Unit) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
     val controller = runtime.controller
@@ -123,6 +123,12 @@ internal fun SurfaceModeSettingsPage(onBack: () -> Unit) {
         }
         item(key = "surface_system") {
             AgentSettingsGroup(stringResource(R.string.surface_section_system)) {
+                // R25：伪装桌面管理提供和完整设置同一个屏幕适配入口。
+                AgentSettingsEntry(
+                    title = stringResource(R.string.screen_fit_title),
+                    subtitle = stringResource(R.string.surface_screen_fit_entry_sub),
+                    onClick = onOpenScreenFit,
+                )
                 AgentSettingsEntry(
                     title = stringResource(R.string.surface_default_home),
                     subtitle = defaultHome,

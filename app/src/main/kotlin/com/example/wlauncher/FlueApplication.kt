@@ -25,7 +25,9 @@ class FlueApplication : Application() {
     val repositories: FlueRepositories by lazy { FlueRepositories(this) }
 
     override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(FlueLocaleManager.applyLocale(base))
+        super.attachBaseContext(
+            com.flue.launcher.surface.display.DisplayAdaptation.applyDensity(FlueLocaleManager.applyLocale(base)),
+        )
     }
 
     override fun onCreate() {
@@ -33,6 +35,7 @@ class FlueApplication : Application() {
         FlueLog.configureDiagnostics(this)
         // FFlue 模式内核：模式状态、按模式投影的设置与页面守卫（R05–R08）。
         com.flue.launcher.surface.SurfaceRuntime.install(this)
+        com.flue.launcher.surface.display.DisplayAdaptation.install(this)
         com.flue.launcher.status.DoNotDisturbState.initialize(this)
         // Standard, JB, and editor previews all resolve their null weather
         // source through this one application-owned repository. Its cached

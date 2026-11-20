@@ -239,7 +239,15 @@ class LauncherActivity : FlueComponentActivity() {
             restored = savedInstanceState != null,
             homeIntent = intent.isLauncherHomeIntent(),
         )
-        aodController = AodController(this, onCollapseOverlays = { vm.setState(ScreenState.Face) }, onWillForeground = vm::onLauncherAodForeground)
+        aodController = AodController(
+            this,
+            onCollapseOverlays = { vm.setState(ScreenState.Face) },
+            onWillForeground = vm::onLauncherAodForeground,
+            // 外部桌面模式下熄屏不能把 FFlue 抢回前台。
+            foregroundAllowed = {
+                SurfaceRuntime.get(this).controller.mode.value != com.flue.launcher.surface.mode.SurfaceMode.EXTERNAL
+            },
+        )
         aodController.start()
         RecentsVisibility.apply(this)
         CrashHandler(applicationContext).install()
@@ -279,7 +287,8 @@ class LauncherActivity : FlueComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra(AodController.EXTRA_AOD_FOREGROUND, false)) {
-            vm.onLauncherAodForeground()
+            // 模式切换前已排队的 AOD 唤醒：外部模式下转交回外部桌面，不停留在 FFlue。
+            if (!SurfaceRuntime.get(this).onLauncherIntent(this, isHomeIntent = true)) vm.onLauncherAodForeground()
         } else if (intent.isLauncherHomeIntent() && SurfaceRuntime.get(this).onLauncherIntent(this, true)) {
             // 已转交给首次使用引导或外部桌面。
         } else if (intent.isLauncherHomeIntent()) {

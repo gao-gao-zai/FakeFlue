@@ -3,6 +3,7 @@ package com.flue.launcher.surface.config
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.flue.launcher.surface.mode.ConfigScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -25,10 +26,12 @@ class ModeScopedDataStore(
             .distinctUntilChanged()
 
     override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
-        // 在同一次物理事务里取当前模式，保证读、改、写落在同一套配置上。
-        var written: ConfigScope = scope.value
+        // 提交方固定了模式（[ConfigScopePin]）就按它写；否则在同一次物理事务里取当前模式，
+        // 保证读、改、写落在同一套配置上。
+        val pinned = currentCoroutineContext()[ConfigScopePin]?.scope
+        var written: ConfigScope = pinned ?: scope.value
         val result = physical.updateData { current ->
-            val target = scope.value
+            val target = pinned ?: scope.value
             written = target
             val view = ModeScopedPreferences.project(current, target)
             val changed = transform(view)
