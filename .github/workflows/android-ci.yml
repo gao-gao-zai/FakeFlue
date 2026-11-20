@@ -1,4 +1,4 @@
-# FFlue CI。仓库必须是私有仓库（需求 R03：闭源，不得发布到公开仓库）。
+# FFlue CI（公开仓库 gao-gao-zai/FakeFlue，GPL-3.0）。不在日志和产物里放任何密钥。
 #
 # unit：每次 push / PR 运行 JVM 单元测试（JUnit + Robolectric）并构建 Debug APK。
 # emulator：仅 PR 和手动触发时运行，在模拟器上跑不需要 Root / SIM 的仪器测试；
