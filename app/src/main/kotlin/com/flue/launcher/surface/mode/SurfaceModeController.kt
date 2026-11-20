@@ -103,6 +103,8 @@ class SurfaceModeController(
         if (!switching.compareAndSet(false, true)) return Busy
         try {
             val previous = _mode.value
+            // 已在外部模式时仍要真正打开外部桌面：用户可能从应用图标回到了 FFlue，或刚换了目标。
+            if (previous == target && target == SurfaceMode.EXTERNAL) return relaunchExternal()
             if (previous == target) return ModeSwitchResult.AlreadyInMode
             return when (target) {
                 SurfaceMode.FULL -> commit(previous, SurfaceMode.FULL)
@@ -115,6 +117,14 @@ class SurfaceModeController(
         } finally {
             switching.set(false)
         }
+    }
+
+    private fun relaunchExternal(): ModeSwitchResult {
+        val target = storage.readExternalTarget()?.takeIf { it.isNotBlank() && !isOwnComponent(it) }
+            ?: return Failed(ModeSwitchResult.FailureReason.EXTERNAL_TARGET_MISSING)
+        if (!effects.isLaunchableHome(target)) return Failed(ModeSwitchResult.FailureReason.EXTERNAL_TARGET_INVALID)
+        if (!effects.launchExternalHome(target)) return Failed(ModeSwitchResult.FailureReason.EXTERNAL_LAUNCH_FAILED)
+        return ModeSwitchResult.Success
     }
 
     private fun exitToExternal(previous: SurfaceMode): ModeSwitchResult {

@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.flue.launcher.surface.config.LauncherSettingsScopes.DISGUISE_PREFIX
+import com.flue.launcher.surface.config.ConfigScopePin
 import com.flue.launcher.surface.config.ModeScopedDataStore
 import com.flue.launcher.surface.mode.ConfigScope
 import java.io.File
@@ -16,6 +17,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -53,6 +55,17 @@ class ModeScopedDataStoreTest {
         val raw = physical.data.first()
         assertEquals("full_face", raw[face])
         assertEquals("plain_face", raw[stringPreferencesKey(DISGUISE_PREFIX + "selected_watchface_id")])
+    }
+
+    @Test
+    fun pinnedWriteLandsInSubmittingModeAfterSwitch() = runBlocking {
+        // 完整模式下提交、切到伪装后才执行的排队写入，仍写回完整模式。
+        val pin = ConfigScopePin(ConfigScope.FULL)
+        mode.value = ConfigScope.DISGUISE
+        withContext(pin) { store.edit { it[face] = "queued_full_face" } }
+        assertNull(store.data.first()[face])
+        mode.value = ConfigScope.FULL
+        assertEquals("queued_full_face", store.data.first()[face])
     }
 
     @Test

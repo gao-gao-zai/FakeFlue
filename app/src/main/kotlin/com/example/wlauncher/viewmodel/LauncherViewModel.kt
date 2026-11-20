@@ -4164,15 +4164,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return runCatching { WatchFaceMd3eShape.valueOf(raw) }.getOrDefault(WatchFaceMd3eShape.COOKIE)
     }
 
+    /** R06：写入固定到提交时的模式，排队期间切换模式也不会写进另一套配置。 */
+    private fun submittedScope() =
+        com.flue.launcher.surface.config.ConfigScopePin(com.flue.launcher.surface.SurfaceRuntime.get(getApplication()).controller.configScope.value)
+
     private fun persist(block: suspend () -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + submittedScope()) {
             block()
         }
     }
 
     private fun persistDebounced(tag: String, delayMs: Long = 120, block: suspend () -> Unit) {
         pendingWriteJobs.remove(tag)?.cancel()
-        pendingWriteJobs[tag] = viewModelScope.launch(Dispatchers.IO) {
+        pendingWriteJobs[tag] = viewModelScope.launch(Dispatchers.IO + submittedScope()) {
             delay(delayMs)
             block()
             pendingWriteJobs.remove(tag)
