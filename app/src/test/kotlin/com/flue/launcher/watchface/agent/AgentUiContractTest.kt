@@ -19,10 +19,14 @@ class AgentUiContractTest {
     fun `agent settings use one lazy list and expose workspace management`() {
         val settings = source("com/flue/launcher/ui/settings/agent/AgentSettingsPage.kt")
         val components = source("com/flue/launcher/ui/settings/agent/AgentSettingsComponents.kt")
+        // FFlue：页面外壳交给统一骨架（R25），单列表约束随之落到骨架上。
+        val scaffold = source("com/flue/launcher/surface/ui/FfluePageScaffold.kt")
 
-        assertTrue(components.contains("LazyColumn("))
+        assertTrue(components.contains("FfluePageScaffold("))
+        assertTrue(scaffold.contains("LazyColumn("))
         assertFalse(settings.contains(".verticalScroll("))
         assertFalse(components.contains(".verticalScroll("))
+        assertFalse(scaffold.contains(".verticalScroll("))
         assertTrue(settings.contains("WorkspaceManager("))
         assertTrue(settings.contains("agent_create_workspace"))
     }
@@ -48,10 +52,12 @@ class AgentUiContractTest {
     fun `settings destinations own independent scroll state and workspace mutations isolate failures`() {
         val settings = source("com/flue/launcher/ui/settings/agent/AgentSettingsPage.kt")
         val components = source("com/flue/launcher/ui/settings/agent/AgentSettingsComponents.kt")
+        val scaffold = source("com/flue/launcher/surface/ui/FfluePageScaffold.kt")
 
-        assertTrue(components.contains("remember(stateKey) { LazyListState() }"))
-        assertTrue(components.contains("LaunchedEffect(stateKey)"))
-        assertTrue(components.contains("state.scrollToItem(0)"))
+        assertTrue(components.contains("stateKey = stateKey"))
+        assertTrue(scaffold.contains("remember(stateKey) { LazyListState() }"))
+        assertTrue(scaffold.contains("LaunchedEffect(stateKey)"))
+        assertTrue(scaffold.contains("state.scrollToItem(0)"))
         assertTrue(settings.contains("runCatching { workspaceManager.rename"))
         assertTrue(settings.contains("check(workspaceManager.delete"))
     }
