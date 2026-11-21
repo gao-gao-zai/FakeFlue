@@ -28,6 +28,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import com.flue.launcher.surface.apps.NotificationVisibility
+import com.flue.launcher.surface.mode.ThirdPartyScreenOff
 
 /**
  * FFlue 模式内核的进程级单例：模式控制器、按模式投影的设置存储与页面守卫。
@@ -55,40 +63,85 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /**
-     * 当前模式的公开应用白名单（R10）：完整／外部模式为 null（不限制），伪装模式为已选应用。
-     * 冷启动在伪装模式时先按空集合处理，避免设置读出来之前露出全部应用。
-     */
-    val publicApps: StateFlow<Set<String>?> = combine(app.dataStore.data, controller.configScope) { prefs, scope ->
-        if (scope == ConfigScope.DISGUISE) {
-            val name = LauncherSettingsScopes.physicalName(PublicAppRules.KEY, ConfigScope.DISGUISE)
-            PublicAppRules.parse(prefs[stringPreferencesKey(name)])
-        } else {
-            null
-        }
-    }
-        .stateIn(
+    /** 伪装配置里一个逗号分隔集合键的当前值：完整／外部模式为 null，伪装模式冷启动先按空集合。 */
+    private fun disguiseSet(key: String): StateFlow<Set<String>?> =
+        combine(app.dataStore.data, controller.configScope) { prefs, configScope ->
+            if (configScope == ConfigScope.DISGUISE) {
+                PublicAppRules.parse(prefs[stringPreferencesKey(disguiseName(key))])
+            } else {
+                null
+            }
+        }.stateIn(
             scope,
             SharingStarted.Eagerly,
             if (controller.configScope.value == ConfigScope.DISGUISE) emptySet() else null,
         )
 
+    private fun disguiseName(key: String) = LauncherSettingsScopes.physicalName(key, ConfigScope.DISGUISE)
+
+    private suspend fun saveDisguiseSet(key: String, entries: Set<String>) {
+        app.dataStore.edit { prefs -> prefs[stringPreferencesKey(disguiseName(key))] = PublicAppRules.serialize(entries) }
+    }
+
+    private suspend fun readDisguiseSet(key: String): Set<String> =
+        PublicAppRules.parse(app.dataStore.data.first()[stringPreferencesKey(disguiseName(key))])
+
+    /**
+     * 当前模式的公开应用白名单（R10）：完整／外部模式为 null（不限制），伪装模式为已选应用。
+     * 冷启动在伪装模式时先按空集合处理，避免设置读出来之前露出全部应用。
+     */
+    val publicApps: StateFlow<Set<String>?> = disguiseSet(PublicAppRules.KEY)
+
+    /** 伪装模式下额外允许展示通知的未公开应用（R11，包名）；完整模式为 null。 */
+    val notificationAllowedApps: StateFlow<Set<String>?> = disguiseSet(NotificationVisibility.KEY)
+
     /** 按包名判断当前模式是否允许展示或启动该应用（R08、R11）。 */
     fun isPackagePublic(packageName: String?): Boolean =
         PublicAppRules.isPackagePublic(packageName, publicApps.value, app.packageName)
 
+    /** 当前模式下该应用的通知是否进通知层（R11）。 */
+    fun isNotificationVisible(packageName: String?): Boolean =
+        NotificationVisibility.isVisible(packageName, publicApps.value, notificationAllowedApps.value, app.packageName)
+
     /** 保存伪装模式的公开应用白名单（只在伪装配置里写）。 */
-    suspend fun savePublicApps(entries: Set<String>) {
-        app.dataStore.edit { prefs ->
-            prefs[stringPreferencesKey(LauncherSettingsScopes.physicalName(PublicAppRules.KEY, ConfigScope.DISGUISE))] =
-                PublicAppRules.serialize(entries)
-        }
-    }
+    suspend fun savePublicApps(entries: Set<String>) = saveDisguiseSet(PublicAppRules.KEY, entries)
 
     /** 读伪装模式的公开应用白名单，不论当前模式（管理页在完整模式下也能配置）。 */
-    suspend fun disguisePublicApps(): Set<String> {
-        val name = LauncherSettingsScopes.physicalName(PublicAppRules.KEY, ConfigScope.DISGUISE)
-        return PublicAppRules.parse(app.dataStore.data.first()[stringPreferencesKey(name)])
+    suspend fun disguisePublicApps(): Set<String> = readDisguiseSet(PublicAppRules.KEY)
+
+    suspend fun saveNotificationAllowedApps(packages: Set<String>) =
+        saveDisguiseSet(NotificationVisibility.KEY, packages)
+
+    suspend fun disguiseNotificationAllowedApps(): Set<String> = readDisguiseSet(NotificationVisibility.KEY)
+
+    /** R09：伪装模式下在第三方应用里熄屏后，下次亮屏是否继续原应用（默认回表盘）。 */
+    val screenOffKeepApp: StateFlow<Boolean> = app.dataStore.data
+        .map { prefs -> prefs[booleanPreferencesKey(disguiseName(ThirdPartyScreenOff.KEY))] == true }
+        .stateIn(scope, SharingStarted.Eagerly, false)
+
+    suspend fun setScreenOffKeepApp(keep: Boolean) {
+        app.dataStore.edit { prefs -> prefs[booleanPreferencesKey(disguiseName(ThirdPartyScreenOff.KEY))] = keep }
+    }
+
+    private val _managementSession = MutableStateFlow(false)
+
+    /**
+     * 本次管理流程是否有效（R12 管理资格）：伪装模式下允许编辑伪装小组件等管理操作。
+     * 只保存在内存里，熄屏或模式改变即失效，不持久保存为永久解锁。
+     */
+    val managementSession: StateFlow<Boolean> = _managementSession.asStateFlow()
+
+    /** P2b-2 临时管理手势进入管理时调用；P3 改由隐藏管理菜单验证后调用。 */
+    fun beginManagementSession() {
+        _managementSession.value = true
+    }
+
+    fun endManagementSession() {
+        _managementSession.value = false
+    }
+
+    init {
+        scope.launch { controller.mode.drop(1).collect { endManagementSession() } }
     }
 
     /**
@@ -197,6 +250,15 @@ private class AndroidModeSwitchEffects(
 /** HOME 相关的系统查询。 */
 object SurfaceHome {
     fun homeIntent(): Intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+
+    /** 桌面收到带此标记的 HOME Intent 时，结束启动会话、不播返回动画，直接回表盘。 */
+    const val EXTRA_RETURN_TO_FACE = "com.flue.launcher.extra.RETURN_TO_FACE"
+
+    /** 把本应用桌面带回前台并停在表盘（R09 熄屏回表盘、R11 小组件越界）。 */
+    fun returnToFaceIntent(context: Context): Intent = homeIntent()
+        .setPackage(context.packageName)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        .putExtra(EXTRA_RETURN_TO_FACE, true)
 
     /** 系统当前默认 HOME 的包名；没有默认项（会弹选择器）时为 null。 */
     fun defaultHomePackage(context: Context): String? {

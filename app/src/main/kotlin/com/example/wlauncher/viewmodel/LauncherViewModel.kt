@@ -263,6 +263,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val KEY_HIDDEN_APPS = stringPreferencesKey("hidden_apps")
         /** R10 伪装模式公开应用白名单；读写在 [com.flue.launcher.surface.SurfaceRuntime]，这里登记以便分类检查。 */
         val KEY_PUBLIC_APPS = stringPreferencesKey(com.flue.launcher.surface.apps.PublicAppRules.KEY)
+        /** R11 伪装模式单独放行通知的未公开应用；读写在 SurfaceRuntime。 */
+        val KEY_NOTIFICATION_ALLOWED_APPS =
+            stringPreferencesKey(com.flue.launcher.surface.apps.NotificationVisibility.KEY)
+        /** R09 伪装模式第三方应用熄屏后是否继续原应用；读写在 SurfaceRuntime。 */
+        val KEY_SCREEN_OFF_KEEP_APP =
+            booleanPreferencesKey(com.flue.launcher.surface.mode.ThirdPartyScreenOff.KEY)
         val KEY_ICON_PACK_PACKAGE = stringPreferencesKey("icon_pack_package")
         val KEY_SELECTED_WATCHFACE_ID = stringPreferencesKey("selected_watchface_id")
         val KEY_LAST_WATCHFACE_ERROR = stringPreferencesKey("last_watchface_error")
@@ -586,6 +592,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val rotaryHapticsEnabled: StateFlow<Boolean> = _rotaryHapticsEnabled.asStateFlow()
     private val _showWidgetPage = MutableStateFlow(true)
     val showWidgetPage: StateFlow<Boolean> = _showWidgetPage.asStateFlow()
+    private val startsInFullScope =
+        surfaceRuntime.controller.configScope.value == com.flue.launcher.surface.mode.ConfigScope.FULL
+    private val _widgetPageEditable = MutableStateFlow(startsInFullScope)
+    /** 小组件页能否添加／编辑（R11）：伪装模式只在本次管理流程有效时可以。 */
+    val widgetPageEditable: StateFlow<Boolean> = _widgetPageEditable.asStateFlow()
+    private val _widgetPageAvailable = MutableStateFlow(startsInFullScope)
+    /** 能否进入小组件页（R11）：完整模式等于开关；伪装模式还要有可用的公开小组件，或处在管理流程中。 */
+    val widgetPageAvailable: StateFlow<Boolean> = _widgetPageAvailable.asStateFlow()
     private val _showControlCenter = MutableStateFlow(true)
     val showControlCenter: StateFlow<Boolean> = _showControlCenter.asStateFlow()
     private val _showMusicControls = MutableStateFlow(true)
@@ -852,20 +866,85 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var appOrderWriteJob: Job? = null
     private var pendingNotificationClearJob: Job? = null
     private var refreshIconsJob: Job? = null
-    /** 伪装模式熄屏回表盘（R08）。AodController 只在启用息屏显示时才注册熄屏监听，这里单独收。 */
+    /** 伪装模式熄屏回表盘（R08、R09）。AodController 只在启用息屏显示时才注册熄屏监听，这里单独收。 */
     private val screenOffReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) onScreenOff()
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> onScreenOff()
+                Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> retryThirdPartyScreenOffReturn()
+            }
         }
     }
 
+    /** 第三方应用里熄屏后已请求回表盘、但桌面还没回到前台（后台启动可能被系统静默拒绝）。 */
+    private var thirdPartyReturnPending = false
+
     private fun onScreenOff() {
-        val target = com.flue.launcher.surface.mode.DisguiseScreenOff.targetState(
-            surfaceRuntime.controller.configScope.value,
-            _screenState.value,
-        ) ?: return
+        // R12：管理资格限本次流程，熄屏即失效。
+        surfaceRuntime.endManagementSession()
+        val scope = surfaceRuntime.controller.configScope.value
+        if (
+            com.flue.launcher.surface.mode.ThirdPartyScreenOff.shouldReturnToFace(
+                scope = scope,
+                keepApp = surfaceRuntime.screenOffKeepApp.value,
+                ownActivityStarted = surfaceRuntime.activityGuard.ownActivityVisibleAround(
+                    android.os.SystemClock.elapsedRealtime(),
+                ),
+                inCall = isInCall(),
+            )
+        ) {
+            thirdPartyReturnPending = true
+            requestReturnToFace()
+            return
+        }
+        val target = com.flue.launcher.surface.mode.DisguiseScreenOff.targetState(scope, _screenState.value) ?: return
         closeFolder()
         setState(target)
+    }
+
+    /** R09：AodController 熄屏时能否把桌面拉回前台，与本接收器共用同一套例外。 */
+    fun screenOffForegroundAllowed(): Boolean =
+        com.flue.launcher.surface.mode.ThirdPartyScreenOff.foregroundAllowed(
+            scope = surfaceRuntime.controller.configScope.value,
+            keepApp = surfaceRuntime.screenOffKeepApp.value,
+            ownActivityStarted = surfaceRuntime.activityGuard.ownActivityVisibleAround(
+                android.os.SystemClock.elapsedRealtime(),
+            ),
+            inCall = isInCall(),
+        )
+
+    private fun retryThirdPartyScreenOffReturn() {
+        if (!thirdPartyReturnPending) return
+        if (surfaceRuntime.activityGuard.hasStartedActivity || isInCall()) {
+            thirdPartyReturnPending = false
+            return
+        }
+        requestReturnToFace()
+    }
+
+    private fun requestReturnToFace() {
+        val app = getApplication<Application>()
+        runCatching { app.startActivity(com.flue.launcher.surface.SurfaceHome.returnToFaceIntent(app)) }
+            .onFailure { android.util.Log.w("SurfaceScreenOff", "return to face failed", it) }
+    }
+
+    /** 真实通话（含网络通话）时不打断：贴脸熄屏后亮屏应当还在通话界面。 */
+    private fun isInCall(): Boolean {
+        val audio = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+            ?: return false
+        return when (audio.mode) {
+            android.media.AudioManager.MODE_IN_CALL,
+            android.media.AudioManager.MODE_IN_COMMUNICATION,
+            android.media.AudioManager.MODE_RINGTONE -> true
+            else -> false
+        }
+    }
+
+    /** 桌面收到熄屏回表盘或小组件越界的 HOME Intent：结束启动会话，直接停在表盘。 */
+    fun onLauncherReturnToFace() {
+        thirdPartyReturnPending = false
+        closeFolder()
+        onLauncherAodForeground()
     }
 
     init {
@@ -873,7 +952,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             androidx.core.content.ContextCompat.registerReceiver(
                 application,
                 screenOffReceiver,
-                android.content.IntentFilter(Intent.ACTION_SCREEN_OFF),
+                android.content.IntentFilter(Intent.ACTION_SCREEN_OFF).apply {
+                    addAction(Intent.ACTION_SCREEN_ON)
+                    addAction(Intent.ACTION_USER_PRESENT)
+                },
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
             )
         }
@@ -886,6 +968,51 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 appRepository.setPublicWhitelist(whitelist)
                 refreshOpenFolderVisibility()
                 WLauncherNotificationListener.refreshIfConnected()
+            }
+        }
+        viewModelScope.launch {
+            surfaceRuntime.notificationAllowedApps.collect { WLauncherNotificationListener.refreshIfConnected() }
+        }
+        viewModelScope.launch {
+            val widgetRepository = repositories.widgetRepository
+            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(getApplication())
+            val appWidgetHost = repositories.appWidgetHost
+            combine(
+                surfaceRuntime.controller.configScope,
+                surfaceRuntime.managementSession,
+                _showWidgetPage,
+                _sideScreenWidgetSlots,
+                // 已安装应用变化（装卸、更新）可能让提供方失效，跟着重算。
+                combine(surfaceRuntime.publicApps, appRepository.allApps) { publicApps, _ -> publicApps },
+            ) { scope, management, enabled, slots, _ ->
+                val editable = com.flue.launcher.surface.widgets.DisguiseWidgetRules.editable(scope, management)
+                val usable = editable || withContext(Dispatchers.IO) {
+                    val hostIds = runCatching { appWidgetHost.appWidgetIds.toSet() }.getOrDefault(emptySet())
+                    com.flue.launcher.surface.widgets.DisguiseWidgetRules.hasUsableWidget(
+                        slots = slots,
+                        providerPackageOf = { raw -> widgetRepository.parseSlotValue(raw)?.packageName },
+                        isPackagePublic = surfaceRuntime::isPackagePublic,
+                        isBindingUsable = { raw ->
+                            val widget = widgetRepository.parseSlotValue(raw)
+                            widget != null && com.flue.launcher.widget.widgetBindingDecision(
+                                savedId = widget.widgetId,
+                                expectedProviderKey = widget.widgetKey,
+                                hostIds = hostIds,
+                                actualProviderKey = runCatching {
+                                    appWidgetManager.getAppWidgetInfo(widget.widgetId)?.provider?.flattenToString()
+                                }.getOrNull(),
+                                providerInstalled = true,
+                            ) == com.flue.launcher.widget.WidgetBindingDecision.VALID
+                        },
+                    )
+                }
+                editable to com.flue.launcher.surface.widgets.DisguiseWidgetRules.pageAvailable(enabled, editable, usable)
+            }.collect { (editable, available) ->
+                _widgetPageEditable.value = editable
+                _widgetPageAvailable.value = available
+                if (!available && _screenState.value == ScreenState.Widgets) {
+                    _screenState.value = ScreenState.Face
+                }
             }
         }
         viewModelScope.launch {
@@ -902,12 +1029,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 _expandedNotificationGroups,
                 _pendingDismissedNotificationKeys,
                 _showOngoingNotifications,
-                surfaceRuntime.publicApps
-            ) { notifications, expandedPackages, pendingDismissedKeys, showOngoing, publicApps ->
+                combine(surfaceRuntime.publicApps, surfaceRuntime.notificationAllowedApps, ::Pair)
+            ) { notifications, expandedPackages, pendingDismissedKeys, showOngoing, (publicApps, allowedApps) ->
                 val ownPackage = getApplication<Application>().packageName
                 val visibleNotifications = notifications.filter {
                     shouldShowNotification(it, showOngoing) &&
-                        com.flue.launcher.surface.apps.PublicAppRules.isPackagePublic(it.packageName, publicApps, ownPackage)
+                        com.flue.launcher.surface.apps.NotificationVisibility.isVisible(
+                            it.packageName, publicApps, allowedApps, ownPackage,
+                        )
                 }
                 val filteredNotifications = visibleNotifications.filterNot { it.key in pendingDismissedKeys }
                 val activeNotificationKeys = notifications.asSequence().map { it.key }.toSet()
@@ -1634,7 +1763,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _screenState.value = when {
             state == ScreenState.Notifications && !_sideScreenEnabled.value -> ScreenState.Face
             state == ScreenState.Notifications && !_showNotification.value -> ScreenState.Stack
-            state == ScreenState.Widgets && !_showWidgetPage.value -> ScreenState.Face
+            state == ScreenState.Widgets && !_widgetPageAvailable.value -> ScreenState.Face
             state == ScreenState.ControlCenter && !_showControlCenter.value -> ScreenState.Face
             else -> state
         }
@@ -1723,6 +1852,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             .flatMap { it.entries.asSequence() }
             .firstOrNull { it.key == key }
             ?: return false
+        if (!surfaceRuntime.isPackagePublic(targetEntry.packageName)) {
+            // R11：放行展示的未公开应用通知要先静默验证（P3），在此之前留在通知中心。
+            Toast.makeText(getApplication(), R.string.surface_notification_open_blocked, Toast.LENGTH_SHORT).show()
+            return false
+        }
         cancelPendingReturnResolution()
         val sessionId = externalLaunchTracker.begin(
             ExternalLaunchRequest(
@@ -1782,6 +1916,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onLauncherResumed() {
+        thirdPartyReturnPending = false
         cancelPendingReturnResolution()
         val backgrounded = externalLaunchTracker.state as? ExternalLaunchState.Backgrounded
         if (
@@ -3922,6 +4057,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun runNotificationAction(actionKey: String): Boolean {
         if (actionKey.isBlank()) return false
         _revealedNotificationTarget.value = null
+        if (WLauncherNotificationListener.isActionBlocked(actionKey)) {
+            Toast.makeText(getApplication(), R.string.surface_notification_open_blocked, Toast.LENGTH_SHORT).show()
+            return false
+        }
         return WLauncherNotificationListener.runNotificationAction(actionKey)
     }
 

@@ -9,6 +9,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -20,6 +21,8 @@ import com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity
 import com.flue.launcher.ui.settings.agent.AgentSettingsEntry
 import com.flue.launcher.ui.settings.agent.AgentSettingsGroup
 import com.flue.launcher.ui.settings.agent.AgentSettingsScreen
+import com.flue.launcher.ui.style.FlueSwitchIndicator
+import kotlinx.coroutines.launch
 
 /**
  * 设置 → 桌面模式（R05、R07）。所有模式切换都经过 [com.flue.launcher.surface.mode.SurfaceModeController]。
@@ -32,6 +35,7 @@ internal fun SurfaceModeSettingsPage(
     onOpenScreenFit: () -> Unit,
     onOpenPublicApps: () -> Unit,
     onOpenAboutOverrides: () -> Unit,
+    onOpenNotificationApps: () -> Unit,
 ) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
@@ -49,7 +53,13 @@ internal fun SurfaceModeSettingsPage(
     }
     val defaultHome = remember(resumeTick, mode) { context.defaultHomeDescription() }
     var publicCount by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(resumeTick) { publicCount = runtime.disguisePublicApps().size }
+    var notificationAllowCount by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(resumeTick) {
+        publicCount = runtime.disguisePublicApps().size
+        notificationAllowCount = runtime.disguiseNotificationAllowedApps().size
+    }
+    val keepAppOnScreenOff by runtime.screenOffKeepApp.collectAsState()
+    val scope = rememberCoroutineScope()
 
     fun switch(target: SurfaceMode) {
         context.reportModeSwitch(controller.switchTo(target), target)
@@ -101,6 +111,17 @@ internal fun SurfaceModeSettingsPage(
                     title = stringResource(R.string.surface_public_apps_title),
                     subtitle = publicCount?.let { stringResource(R.string.surface_public_apps_entry_sub, it) },
                     onClick = onOpenPublicApps,
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_notification_allow_title),
+                    subtitle = notificationAllowCount?.let { stringResource(R.string.surface_notification_allow_entry_sub, it) },
+                    onClick = onOpenNotificationApps,
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_screen_off_keep_app_title),
+                    subtitle = stringResource(R.string.surface_screen_off_keep_app_sub),
+                    onClick = { scope.launch { runtime.setScreenOffKeepApp(!keepAppOnScreenOff) } },
+                    trailing = { FlueSwitchIndicator(checked = keepAppOnScreenOff) },
                 )
                 AgentSettingsEntry(
                     title = stringResource(R.string.about_overrides_title),

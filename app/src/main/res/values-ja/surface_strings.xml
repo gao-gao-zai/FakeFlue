@@ -126,4 +126,11 @@
     <string name="about_fflue_title">FFlue について</string>
     <string name="about_fflue_subtitle">バージョン、作者、コミュニティ、謝辞</string>
     <string name="search_d_device_about">システム、デバイス、ストレージ、メモリ、バッテリーの情報</string>
+    <string name="surface_widget_target_blocked">このウィジェットが開こうとした内容は現在利用できません</string>
+    <string name="surface_notification_open_blocked">この通知は現在ここから開けません</string>
+    <string name="surface_notification_allow_title">通知の表示</string>
+    <string name="surface_notification_allow_subtitle">公開していないアプリの通知は既定で非表示です。通知を表示するアプリを選びます。表示だけに影響し、開く前には確認が必要です。</string>
+    <string name="surface_notification_allow_entry_sub">ほかに %1$d 個のアプリの通知を表示</string>
+    <string name="surface_screen_off_keep_app_title">画面オフ後もアプリを継続</string>
+    <string name="surface_screen_off_keep_app_sub">オフの場合、他のアプリで画面をオフにすると次の点灯時に文字盤に戻ります（通話中を除く）</string>
 </resources>
