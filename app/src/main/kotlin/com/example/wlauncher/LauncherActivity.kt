@@ -268,6 +268,8 @@ class LauncherActivity : FlueComponentActivity() {
                         LauncherScreen(vm, aodController)
                         // R14：控制中心电量按住后的静默验证，盖在原画面上。
                         com.flue.launcher.surface.secret.HiddenDrawerChallengeHost()
+                        // R33：伪装模式的桌面进入密码，盖在最上面。
+                        com.flue.launcher.surface.lock.DesktopLockHost()
                     }
                 }
             }

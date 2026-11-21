@@ -22,6 +22,9 @@ enum class EntryOrigin {
 
     /** 首次使用选择了伪装桌面；进入后继续默认桌面引导。 */
     ONBOARDING,
+
+    /** 快捷设置磁贴、外部 Intent、实体按键（R34）；进入后回到表盘。 */
+    QUICK,
     ;
 
     companion object {
@@ -64,7 +67,8 @@ object DisguiseEntry {
     private fun continueEntered(context: Context, origin: EntryOrigin) {
         when (origin) {
             EntryOrigin.ONBOARDING -> SurfaceOnboardingActivity.resumeDefaultHome(context)
-            EntryOrigin.SETTINGS -> runCatching { context.startActivity(SurfaceHome.returnToFaceIntent(context)) }
+            EntryOrigin.SETTINGS, EntryOrigin.QUICK ->
+                runCatching { context.startActivity(SurfaceHome.returnToFaceIntent(context)) }
             EntryOrigin.NONE -> Unit
         }
     }

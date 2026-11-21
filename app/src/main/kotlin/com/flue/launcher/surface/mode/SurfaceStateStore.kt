@@ -70,12 +70,28 @@ class SurfaceStateStore(private val prefs: SharedPreferences) : SurfaceStateStor
             prefs.edit().putBoolean(KEY_ROOT_CONFIRMED, value).commit()
         }
 
+    /** R34：快速进入用的实体按键；[android.view.KeyEvent.KEYCODE_UNKNOWN] 表示关闭。 */
+    var quickKeyCode: Int
+        get() = prefs.getInt(KEY_QUICK_KEY_CODE, android.view.KeyEvent.KEYCODE_UNKNOWN)
+        set(value) {
+            prefs.edit().putInt(KEY_QUICK_KEY_CODE, value).commit()
+        }
+
+    var quickKeyPattern: com.flue.launcher.surface.entry.KeyPattern
+        get() = com.flue.launcher.surface.entry.KeyPattern.parse(prefs.getString(KEY_QUICK_KEY_PATTERN, null))
+            ?: com.flue.launcher.surface.entry.KeyPattern.TRIPLE
+        set(value) {
+            prefs.edit().putString(KEY_QUICK_KEY_PATTERN, value.name).commit()
+        }
+
     companion object {
         const val FILE_NAME = "fflue_surface_state"
         const val KEY_DISGUISE_SETUP_STEPS = "disguise_setup_steps"
         const val KEY_TUTORIAL_VERSION = "tutorial_version"
         const val KEY_PREFERRED_EXIT = "preferred_exit"
         const val KEY_ROOT_CONFIRMED = "root_confirmed"
+        const val KEY_QUICK_KEY_CODE = "quick_key_code"
+        const val KEY_QUICK_KEY_PATTERN = "quick_key_pattern"
         const val KEY_MODE = "mode"
         const val KEY_EXTERNAL_TARGET = "external_home_target"
         const val KEY_WELCOME_COMPLETED = "welcome_completed"
