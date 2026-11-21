@@ -42,7 +42,7 @@ object LauncherSettingsScopes {
         "icon_pack_package", "overlay_mask_corner_radius_dp",
         // 应用列表与布局（R10 公开菜单与布局）
         "app_order", "hidden_apps", "public_apps",
-        "notification_allowed_apps", "screen_off_keep_app", "honeycomb_cols", "honeycomb_top_blur", "honeycomb_bottom_blur",
+        "notification_allowed_apps", "screen_off_keep_app", "public_app_overrides", "hidden_drawer_pinned", "honeycomb_cols", "honeycomb_top_blur", "honeycomb_bottom_blur",
         "honeycomb_edge_blur_tenths", "honeycomb_top_fade", "honeycomb_bottom_fade",
         "app_list_fisheye_enabled", "material_honeycomb_top_fisheye_enabled",
         "app_list_fisheye_range_rows", "app_list_fisheye_strength_percent",

@@ -288,6 +288,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
@@ -347,6 +348,7 @@ enum class SettingsDestination {
     SURFACE,
     PUBLIC_APPS,
     NOTIFICATION_ALLOWED_APPS,
+    PUBLIC_OVERRIDES,
     ABOUT_OVERRIDES,
     ABOUT_FFLUE,
     WATCH_FACE_MORE,
@@ -440,7 +442,9 @@ class SettingsActivity : FlueComponentActivity() {
                 Configuration.UI_MODE_NIGHT_YES,
         )
         RecentsVisibility.apply(this)
+        if (!passesSurfaceEntryGate(intent, redirect = true)) return
         launchConfig = intent.readSettingsLaunchConfig()
+        watchSurfaceEntryGate()
         setContent {
             val viewModel: LauncherViewModel = viewModel()
             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
@@ -501,8 +505,43 @@ class SettingsActivity : FlueComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (!passesSurfaceEntryGate(intent, redirect = true)) return
         setIntent(intent)
         launchConfig = intent.readSettingsLaunchConfig()
+    }
+
+    /**
+     * R08：伪装模式下没有管理会话时，只放行表盘长按进来的表盘设置；其余进入方式转到公开设置并关闭本页。
+     * 不通过时已经安排关闭，调用方直接返回。
+     */
+    private fun passesSurfaceEntryGate(intent: Intent, redirect: Boolean): Boolean {
+        val runtime = com.flue.launcher.surface.SurfaceRuntime.get(this)
+        val decision = com.flue.launcher.surface.access.SettingsEntryGate.decide(
+            scope = runtime.controller.configScope.value,
+            inManagement = runtime.managementSession.value,
+            destination = intent.getStringExtra(EXTRA_SETTINGS_DESTINATION),
+            returnToFaceOnBack = intent.getBooleanExtra(EXTRA_SETTINGS_RETURN_TO_FACE, false),
+        )
+        if (decision == com.flue.launcher.surface.access.SettingsEntryGate.Decision.ALLOW) return true
+        if (redirect) {
+            runCatching {
+                startActivity(
+                    Intent(this, com.flue.launcher.surface.publicsettings.PublicSettingsActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                )
+            }
+        }
+        finish()
+        return false
+    }
+
+    /** 打开期间切入伪装模式或管理会话结束（熄屏、模式改变）时，按同一规则关闭本页。 */
+    private fun watchSurfaceEntryGate() {
+        val runtime = com.flue.launcher.surface.SurfaceRuntime.get(this)
+        lifecycleScope.launch {
+            kotlinx.coroutines.flow.combine(runtime.controller.configScope, runtime.managementSession) { _, _ -> }
+                .collect { if (!isFinishing) passesSurfaceEntryGate(intent, redirect = false) }
+        }
     }
 
     private fun Intent.readSettingsLaunchConfig(): SettingsLaunchConfig {
@@ -1916,7 +1955,12 @@ private fun SettingsRootScreen(
                 onOpenPublicApps = { navigateTo(SettingsDestination.PUBLIC_APPS) },
                 onOpenAboutOverrides = { navigateTo(SettingsDestination.ABOUT_OVERRIDES) },
                 onOpenNotificationApps = { navigateTo(SettingsDestination.NOTIFICATION_ALLOWED_APPS) },
+                onOpenPublicOverrides = { navigateTo(SettingsDestination.PUBLIC_OVERRIDES) },
             )
+            SettingsDestination.PUBLIC_OVERRIDES -> {
+                val catalogApps by vm.catalogApps.collectAsStateWithLifecycle()
+                com.flue.launcher.surface.ui.PublicOverridesPage(apps = catalogApps, onBack = { handleBack() })
+            }
             SettingsDestination.ABOUT_OVERRIDES ->
                 com.flue.launcher.surface.publicsettings.AboutOverridesPage(onBack = { handleBack() })
             SettingsDestination.PUBLIC_APPS -> {

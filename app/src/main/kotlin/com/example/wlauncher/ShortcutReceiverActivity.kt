@@ -16,6 +16,12 @@ import androidx.core.graphics.drawable.toBitmap
 class ShortcutReceiverActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (ShortcutInstallHandler.blockedBySurface(this)) {
+            // R08：伪装模式的桌面结构只读，不接受固定请求，也不提示“已添加”。
+            Toast.makeText(this, R.string.surface_shortcut_blocked, Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         val added = runCatching { ShortcutInstallHandler.handle(this, intent) }.getOrDefault(false)
         Toast.makeText(
             this,
@@ -28,6 +34,7 @@ class ShortcutReceiverActivity : Activity() {
 
 class ShortcutInstallReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
+        if (ShortcutInstallHandler.blockedBySurface(context)) return
         val added = runCatching { ShortcutInstallHandler.handle(context, intent) }.getOrDefault(false)
         if (added) {
             Toast.makeText(context, "已添加到应用列表", Toast.LENGTH_SHORT).show()
@@ -36,6 +43,11 @@ class ShortcutInstallReceiver : BroadcastReceiver() {
 }
 
 private object ShortcutInstallHandler {
+    /** 伪装模式不能从外部往桌面加快捷方式（R08）；完整、外部模式照旧。 */
+    fun blockedBySurface(context: Context): Boolean =
+        com.flue.launcher.surface.SurfaceRuntime.get(context).controller.configScope.value ==
+            com.flue.launcher.surface.mode.ConfigScope.DISGUISE
+
     fun handle(context: Context, intent: Intent?): Boolean {
         return when (intent?.action) {
             ACTION_INSTALL_SHORTCUT -> handleLegacyShortcut(context, intent)

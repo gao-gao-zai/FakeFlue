@@ -158,6 +158,9 @@ fun FfluePageScaffold(
     subtitle: String? = null,
     swipeBackEnabled: Boolean = true,
     bottomBar: (@Composable RowScope.() -> Unit)? = null,
+    /** 要跳到的列表位置（第 0 项是页头）；跳完调用 [onScrolled]，调用方把它清成 null。 */
+    scrollTo: Int? = null,
+    onScrolled: () -> Unit = {},
     content: LazyListScope.() -> Unit,
 ) {
     val style = LauncherTheme.style
@@ -166,6 +169,12 @@ fun FfluePageScaffold(
     LaunchedEffect(stateKey) {
         state.scrollToItem(0)
         reveal.animateTo(1f, tween(240))
+    }
+    val scrolled by rememberUpdatedState(onScrolled)
+    LaunchedEffect(scrollTo) {
+        val target = scrollTo ?: return@LaunchedEffect
+        state.animateScrollToItem(target)
+        scrolled()
     }
     val system = WindowInsets.safeDrawing.asPaddingValues()
     val density = LocalDensity.current

@@ -209,6 +209,14 @@
             android:theme="@style/Theme.WatchLauncher"
             android:screenOrientation="portrait" />
 
+        <!-- R10/R14 隐藏完整抽屉：只由本应用在验证或管理会话后打开，不导出。 -->
+        <activity
+            android:name="com.flue.launcher.surface.drawer.HiddenDrawerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
         <!-- R18 首次使用路径：欢迎 → 选择模式 → 默认桌面引导。只由本应用启动。 -->
         <activity
             android:name="com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity"
