@@ -91,7 +91,7 @@ class SurfaceActivityGuard {
             "com.flue.launcher.ui.store.WatchStoreWebActivity" to SurfaceFeature.WATCH_STORE,
             "com.flue.launcher.BuiltInFileManagerActivity" to SurfaceFeature.FILE_MANAGER,
             "com.flue.launcher.CanvasAdjustActivity" to SurfaceFeature.ADVANCED_CANVAS,
-        )
+        ) + com.flue.launcher.surface.tools.SurfaceTool.entries.associate { it.className to SurfaceFeature.TOOLS }
 
         fun featureOf(activityClassName: String): SurfaceFeature? = ACTIVITY_FEATURES[activityClassName]
 
