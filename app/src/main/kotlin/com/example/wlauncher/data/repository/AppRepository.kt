@@ -546,7 +546,15 @@ class AppRepository(private val context: Context) {
             }
         }
         if (appInfo.isBuiltInSettingsEntry) {
-            val settingsIntent = Intent(context, com.flue.launcher.SettingsActivity::class.java).apply {
+            // R26：伪装模式的内置“设置”是公开设置页，不进完整设置。
+            val disguise = com.flue.launcher.surface.SurfaceRuntime.get(context).controller.configScope.value ==
+                com.flue.launcher.surface.mode.ConfigScope.DISGUISE
+            val target = if (disguise) {
+                com.flue.launcher.surface.publicsettings.PublicSettingsActivity::class.java
+            } else {
+                com.flue.launcher.SettingsActivity::class.java
+            }
+            val settingsIntent = Intent(context, target).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
