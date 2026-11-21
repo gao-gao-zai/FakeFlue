@@ -350,6 +350,7 @@ enum class SettingsDestination {
     NOTIFICATION_ALLOWED_APPS,
     PUBLIC_OVERRIDES,
     SURFACE_PERMISSIONS,
+    SURFACE_SYSTEM_CONTROL,
     ABOUT_OVERRIDES,
     ABOUT_FFLUE,
     WATCH_FACE_MORE,
@@ -1958,9 +1959,12 @@ private fun SettingsRootScreen(
                 onOpenNotificationApps = { navigateTo(SettingsDestination.NOTIFICATION_ALLOWED_APPS) },
                 onOpenPublicOverrides = { navigateTo(SettingsDestination.PUBLIC_OVERRIDES) },
                 onOpenPermissions = { navigateTo(SettingsDestination.SURFACE_PERMISSIONS) },
+                onOpenSystemControl = { navigateTo(SettingsDestination.SURFACE_SYSTEM_CONTROL) },
             )
             SettingsDestination.SURFACE_PERMISSIONS ->
                 com.flue.launcher.surface.setup.PermissionsPage(onBack = { handleBack() })
+            SettingsDestination.SURFACE_SYSTEM_CONTROL ->
+                com.flue.launcher.surface.system.SystemControlPage(onBack = { handleBack() })
             SettingsDestination.PUBLIC_OVERRIDES -> {
                 val catalogApps by vm.catalogApps.collectAsStateWithLifecycle()
                 com.flue.launcher.surface.ui.PublicOverridesPage(apps = catalogApps, onBack = { handleBack() })
