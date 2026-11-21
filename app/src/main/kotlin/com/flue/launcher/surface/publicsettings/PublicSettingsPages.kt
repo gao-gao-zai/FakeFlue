@@ -3,9 +3,17 @@ package com.flue.launcher.surface.publicsettings
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.os.SystemClock
 import android.widget.Toast
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalViewConfiguration
+import com.flue.launcher.surface.secret.BackDragResult
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListScope
@@ -89,13 +97,17 @@ internal fun PublicSettingsListPage(onBack: () -> Unit, onOpenAbout: () -> Unit)
 /**
  * 关于（R26）：系统、设备、存储、内存、电池五组真实信息，按覆盖显示。
  *
- * @param onBuildNumberTap 点系统版本号时调用（公开页用来接 P3 之前的临时隐藏手势）。
+ * @param onBuildNumberTap 点系统版本号时调用（公开页用来接 R17 重置计数）。显示覆盖不改变这一项的身份。
+ * @param onBackAreaDrag 返回区域按住 2 秒后拖动的结果（R15、R17）；null 时返回按钮是普通按钮。
+ * @param onPageSwipe 页面上出现任何超过触摸容差的滑动时调用（R17 清零计数）。
  * @param extra 额外条目（完整设置在这里放“关于 FFlue”）。
  */
 @Composable
 internal fun DeviceAboutPage(
     onBack: () -> Unit,
     onBuildNumberTap: (() -> Unit)? = null,
+    onBackAreaDrag: ((BackDragResult) -> Unit)? = null,
+    onPageSwipe: (() -> Unit)? = null,
     extra: (LazyListScope.() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -105,10 +117,31 @@ internal fun DeviceAboutPage(
     }
     val overrides = remember(resumeTick) { AboutOverrides.read(context) }
     val unknown = stringResource(R.string.about_unknown)
+    val swipe by rememberUpdatedState(onPageSwipe)
+    val touchSlop = LocalViewConfiguration.current.touchSlop
+    Box(
+        Modifier.fillMaxSize().pointerInput(onPageSwipe != null) {
+            if (onPageSwipe == null) return@pointerInput
+            // 只观察不消费：滚动、右滑返回照常工作。
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if ((change.position - down.position).getDistance() > touchSlop) {
+                        swipe?.invoke()
+                        break
+                    }
+                    if (!change.pressed) break
+                }
+            }
+        },
+    ) {
     FfluePageScaffold(
         stateKey = "device_about",
         title = stringResource(R.string.public_settings_about),
         onBack = onBack,
+        onBackAreaDrag = onBackAreaDrag,
     ) {
         AboutGroup.entries.forEach { group ->
             item(key = "about_${group.name}") {
@@ -126,6 +159,7 @@ internal fun DeviceAboutPage(
             }
         }
         extra?.invoke(this)
+    }
     }
 }
 
@@ -179,9 +213,3 @@ internal fun AboutOverridesPage(onBack: () -> Unit) {
     }
 }
 
-/** 公开关于页的临时隐藏手势：连点系统版本号 7 次（P3 换成五区域密码）。 */
-@Composable
-internal fun rememberTemporaryManagementTap(onTriggered: () -> Unit): () -> Unit {
-    val detector = remember { RepeatTapDetector() }
-    return { if (detector.tap(SystemClock.elapsedRealtime())) onTriggered() }
-}

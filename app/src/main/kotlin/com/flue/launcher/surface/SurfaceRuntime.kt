@@ -37,6 +37,11 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import com.flue.launcher.surface.apps.NotificationVisibility
 import com.flue.launcher.surface.mode.ThirdPartyScreenOff
 import com.flue.launcher.surface.apps.HiddenDrawerCatalog
+import com.flue.launcher.surface.mode.DisguiseEntryRequirement
+import com.flue.launcher.surface.secret.SecretInterruptions
+import com.flue.launcher.surface.secret.SecretRead
+import com.flue.launcher.surface.secret.SecretStore
+import kotlinx.coroutines.flow.collectLatest
 import com.flue.launcher.surface.apps.PublicAppOverride
 import com.flue.launcher.surface.apps.PublicAppOverrides
 
@@ -54,10 +59,16 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     private val effects = AndroidModeSwitchEffects(app, activityGuard)
 
+    /** 隐藏密码（R12）；设备级，两种模式共用。 */
+    val secretStore: SecretStore by lazy { SecretStore.create(app) }
+
     val controller = SurfaceModeController(
         storage = stateStore,
-        // P1 占位：专属配置与教程门槛在 P4 接入（R07、R18、R22）。
-        gate = DisguiseEntryGate { null },
+        // 没有可读的隐藏密码就不能进入伪装模式，否则进去后没有回来的入口（R12、R19）。
+        // 教程门槛在 P4 接入（R22）。
+        gate = DisguiseEntryGate {
+            if (secretStore.read() is SecretRead.Available) null else DisguiseEntryRequirement.BASE_CONFIGURATION
+        },
         effects = effects,
     )
 
@@ -169,7 +180,7 @@ class SurfaceRuntime private constructor(private val app: Application) {
      */
     val managementSession: StateFlow<Boolean> = _managementSession.asStateFlow()
 
-    /** P2b-2 临时管理手势进入管理时调用；P3 改由隐藏管理菜单验证后调用。 */
+    /** 关于页隐藏管理菜单验证成功后调用（R15）。 */
     fun beginManagementSession() {
         _managementSession.value = true
     }
@@ -179,11 +190,77 @@ class SurfaceRuntime private constructor(private val app: Application) {
     }
 
     @Volatile
+    private var secretResetGrant = false
+
+    /** R17：重置流程点满版本号后授予一次“不验证旧密码直接设置新密码”。 */
+    fun grantSecretReset() {
+        secretResetGrant = true
+    }
+
+    fun consumeSecretResetGrant(): Boolean {
+        val granted = secretResetGrant
+        secretResetGrant = false
+        return granted
+    }
+
+    /**
+     * 打开隐藏密码设置页时调用：完整／外部模式总是允许（使用者本人）；伪装模式需要
+     * 本次管理会话（维护）或一次性重置授权（R13、R17）。
+     */
+    fun consumeSecretSetupAccess(): Boolean {
+        if (controller.configScope.value != ConfigScope.DISGUISE) return true
+        val reset = consumeSecretResetGrant()
+        return reset || _managementSession.value
+    }
+
+    /** 熄屏、来电：结束管理会话，撤销一次性授权（R15、R16）。 */
+    fun onInterrupted() {
+        endManagementSession()
+        clearHiddenDrawerChallenge()
+        hiddenDrawerGrant = false
+        secretResetGrant = false
+    }
+
+    private val interruptionReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_OFF) onInterrupted()
+        }
+    }
+
+    private fun watchCalls() {
+        // 不申请电话权限：用音频模式判断通话／响铃，只在管理会话期间轮询。
+        scope.launch {
+            _managementSession.collectLatest { active ->
+                while (active) {
+                    if (SecretInterruptions.inCall(app)) onInterrupted()
+                    kotlinx.coroutines.delay(1_000)
+                }
+            }
+        }
+    }
+
+    /** 本进程的标识：页面重建时用来判断授权是否来自同一进程（进程重建不沿用授权）。 */
+    val processToken: String = java.util.UUID.randomUUID().toString()
+
+    private val _hiddenDrawerChallenge = MutableStateFlow(false)
+
+    /** R14：控制中心电量按住 2 秒松手后，桌面在原画面上显示静默验证层。 */
+    val hiddenDrawerChallenge: StateFlow<Boolean> = _hiddenDrawerChallenge.asStateFlow()
+
+    /** 只在伪装模式生效；完整／外部模式下没有隐藏入口。 */
+    fun requestHiddenDrawerChallenge() {
+        if (controller.configScope.value == ConfigScope.DISGUISE) _hiddenDrawerChallenge.value = true
+    }
+
+    fun clearHiddenDrawerChallenge() {
+        _hiddenDrawerChallenge.value = false
+    }
+
+    @Volatile
     private var hiddenDrawerGrant = false
 
     /**
      * R14：静默验证成功后授予“本次”完整抽屉，只能用一次，不授予管理权限。
-     * P3 由控制中心电量长按验证调用；目前只有管理会话里的入口。
      */
     fun grantHiddenDrawer() {
         hiddenDrawerGrant = true
@@ -198,10 +275,21 @@ class SurfaceRuntime private constructor(private val app: Application) {
     }
 
     init {
+        runCatching {
+            androidx.core.content.ContextCompat.registerReceiver(
+                app,
+                interruptionReceiver,
+                android.content.IntentFilter(Intent.ACTION_SCREEN_OFF),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }
+        watchCalls()
         scope.launch {
             controller.mode.drop(1).collect {
                 endManagementSession()
+                clearHiddenDrawerChallenge()
                 hiddenDrawerGrant = false
+                secretResetGrant = false
             }
         }
     }

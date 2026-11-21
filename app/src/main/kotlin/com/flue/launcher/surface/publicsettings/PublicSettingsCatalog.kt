@@ -44,23 +44,3 @@ enum class PublicSettingsItem(
     /** 关于是内部页面，不跳系统。 */
     ABOUT(R.string.public_settings_about, emptyList()),
 }
-
-/**
- * 连续点击检测：[required] 次点击、相邻两次间隔不超过 [gapMs] 时触发一次，然后重新计数。
- * 用于 P3 之前离开伪装的临时隐藏手势（关于页连点系统版本号）。
- */
-class RepeatTapDetector(private val required: Int = 7, private val gapMs: Long = 1_000) {
-    private var count = 0
-    private var lastAt = Long.MIN_VALUE
-
-    fun tap(nowMs: Long): Boolean {
-        count = if (lastAt != Long.MIN_VALUE && nowMs - lastAt in 0..gapMs) count + 1 else 1
-        lastAt = nowMs
-        if (count >= required) {
-            count = 0
-            lastAt = Long.MIN_VALUE
-            return true
-        }
-        return false
-    }
-}

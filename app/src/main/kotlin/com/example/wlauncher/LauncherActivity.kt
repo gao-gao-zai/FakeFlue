@@ -264,7 +264,11 @@ class LauncherActivity : FlueComponentActivity() {
             val screenShape by vm.screenShapeOverride.collectAsStateWithLifecycle()
             WatchLauncherTheme(themeMode = themeMode, uiStyle = uiStyle, screenShape = screenShape) {
                 ProvideGlobalUiScale(globalUiScalePercent) {
-                    LauncherScreen(vm, aodController)
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+                        LauncherScreen(vm, aodController)
+                        // R14：控制中心电量按住后的静默验证，盖在原画面上。
+                        com.flue.launcher.surface.secret.HiddenDrawerChallengeHost()
+                    }
                 }
             }
         }

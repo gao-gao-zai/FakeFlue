@@ -139,6 +139,8 @@ import com.flue.launcher.service.WLauncherNotificationListener
 import com.flue.launcher.ui.common.FrostedHeader
 import com.flue.launcher.ui.common.DEFAULT_OVERLAY_MASK_CORNER_RADIUS_DP
 import com.flue.launcher.ui.common.WatchBatteryPill
+import com.flue.launcher.surface.secret.secretHoldGesture
+import com.flue.launcher.surface.secret.showRealBatteryInfo
 import com.flue.launcher.ui.common.flueOverlayMaskShape
 import com.flue.launcher.ui.common.glassSurface
 import com.flue.launcher.ui.common.instantPressGesture
@@ -747,9 +749,19 @@ fun ControlCenterLayer(
                         charging = batteryStatus.charging,
                         // 尺寸不再各写一套：与负一屏共用同一组默认值，
                         // 同一块表上两个电池必须一样大（老师实机反馈）。
-                        modifier = Modifier.align(
-                            if (roundScreen) Alignment.TopCenter else Alignment.CenterStart
-                        )
+                        modifier = Modifier
+                            .align(
+                                if (roundScreen) Alignment.TopCenter else Alignment.CenterStart
+                            )
+                            // R14：点按显示真实电池信息；伪装模式下按住 2 秒松手进入静默验证。
+                            .secretHoldGesture(
+                                onTap = { context.showRealBatteryInfo() },
+                                onHeld = {
+                                    com.flue.launcher.surface.SurfaceRuntime.get(context)
+                                        .requestHiddenDrawerChallenge()
+                                },
+                                onPressedChange = lockControlCenterGesture,
+                            )
                     )
                     if (roundScreen) {
                         // 圆屏纵向三段：电池在上、操作键居中、时间在下。
