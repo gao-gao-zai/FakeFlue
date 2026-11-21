@@ -26,11 +26,21 @@ internal fun ManagementMenuPage(
     onOpenFullSettings: () -> Unit,
     onChangeSecret: () -> Unit,
     onSwitch: (SurfaceMode) -> Unit,
+    onOpenTutorial: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val resumeTick = rememberResumeTick()
+    val runtime = remember(context) { SurfaceRuntime.get(context) }
     val externalTarget = remember(resumeTick) {
-        SurfaceRuntime.get(context).controller.externalTarget?.let(ComponentName::unflattenFromString)
+        runtime.controller.externalTarget?.let(ComponentName::unflattenFromString)
+    }
+    // 配置向导里选的退出目标排在前面（R19）。
+    val exits = remember(resumeTick) {
+        if (runtime.stateStore.preferredExit == SurfaceMode.EXTERNAL) {
+            listOf(SurfaceMode.EXTERNAL, SurfaceMode.FULL)
+        } else {
+            listOf(SurfaceMode.FULL, SurfaceMode.EXTERNAL)
+        }
     }
     FfluePageScaffold(
         stateKey = "surface_management",
@@ -53,23 +63,35 @@ internal fun ManagementMenuPage(
                 AgentSettingsEntry(
                     title = stringResource(R.string.surface_manage_change_secret),
                     onClick = onChangeSecret,
-                    last = true,
+                    last = onOpenTutorial == null,
                 )
+                if (onOpenTutorial != null) {
+                    AgentSettingsEntry(
+                        title = stringResource(R.string.surface_tutorial_relearn_entry),
+                        onClick = onOpenTutorial,
+                        last = true,
+                    )
+                }
             }
         }
         item(key = "manage_leave") {
             AgentSettingsGroup {
-                AgentSettingsEntry(
-                    title = stringResource(R.string.surface_action_restore_full),
-                    subtitle = stringResource(R.string.surface_mode_full_desc),
-                    onClick = { onSwitch(SurfaceMode.FULL) },
-                )
-                AgentSettingsEntry(
-                    title = stringResource(R.string.surface_action_return_external),
-                    subtitle = externalTarget?.let(context::homeLabel)
-                        ?: stringResource(R.string.surface_external_target_none),
-                    onClick = { onSwitch(SurfaceMode.EXTERNAL) },
-                )
+                exits.forEach { exit ->
+                    if (exit == SurfaceMode.FULL) {
+                        AgentSettingsEntry(
+                            title = stringResource(R.string.surface_action_restore_full),
+                            subtitle = stringResource(R.string.surface_mode_full_desc),
+                            onClick = { onSwitch(SurfaceMode.FULL) },
+                        )
+                    } else {
+                        AgentSettingsEntry(
+                            title = stringResource(R.string.surface_action_return_external),
+                            subtitle = externalTarget?.let(context::homeLabel)
+                                ?: stringResource(R.string.surface_external_target_none),
+                            onClick = { onSwitch(SurfaceMode.EXTERNAL) },
+                        )
+                    }
+                }
                 AgentSettingsEntry(
                     title = stringResource(R.string.surface_manage_exit),
                     onClick = onBack,

@@ -225,6 +225,30 @@
             android:theme="@style/Theme.WatchLauncher"
             android:screenOrientation="portrait" />
 
+        <!-- R19 伪装专属配置向导、R20–R22 强制教程：只由本应用启动，不导出。 -->
+        <activity
+            android:name="com.flue.launcher.surface.setup.DisguiseSetupActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name="com.flue.launcher.surface.tutorial.TutorialActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <!-- R22 ADB 一键通过教程：发送方必须持有 DUMP（shell/root/系统），第三方应用无法伪造成绩。 -->
+        <receiver
+            android:name="com.flue.launcher.surface.entry.AdbTutorialSkipReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.gaozai.surface.action.SKIP_TUTORIAL" />
+            </intent-filter>
+        </receiver>
+
         <!-- R18 首次使用路径：欢迎 → 选择模式 → 默认桌面引导。只由本应用启动。 -->
         <activity
             android:name="com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity"
