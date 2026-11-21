@@ -576,6 +576,9 @@ data class WatchBitmapFont(
     val glyphs: Map<Int, WatchBitmapGlyph>,
     private val kernings: Map<Long, Int>,
 ) {
+    /** 只读视图，供 R36 持久准备缓存编码；键为 (first shl 32) or second。 */
+    internal val kerningTable: Map<Long, Int> get() = kernings
+
     fun kerning(first: Int, second: Int): Int = kernings[kerningKey(first, second)] ?: 0
 
     fun normalizeText(text: String): String = text.uppercase(Locale.ROOT)

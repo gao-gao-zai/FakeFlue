@@ -1,12 +1,14 @@
 package com.flue.launcher.watchface.standard
 
 import org.luaj.vm2.Globals
+import org.luaj.vm2.LoadState
 import org.luaj.vm2.Lua
 import org.luaj.vm2.LuaClosure
 import org.luaj.vm2.LuaFunction
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
+import org.luaj.vm2.compiler.DumpState
 import org.luaj.vm2.compiler.LuaC
 import org.luaj.vm2.lib.BaseLib
 import org.luaj.vm2.lib.DebugLib
@@ -15,6 +17,10 @@ import org.luaj.vm2.lib.TableLib
 import org.luaj.vm2.lib.VarArgFunction
 import org.luaj.vm2.lib.jse.JseMathLib
 import org.luaj.vm2.lib.jse.JseOsLib
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.StringReader
+import java.security.MessageDigest
 import java.util.ArrayDeque
 import java.util.LinkedHashMap
 import java.util.Locale
@@ -861,6 +867,12 @@ class WatchFaceLuaRuntime private constructor(
             resolveTag: (String) -> WatchTagResolution = { WatchTagResolution.Unsupported(it) },
             readExternalSlot: (Int) -> WatchExternalDataSlot = { WatchExternalData.EMPTY_SLOT },
             externalDataVersion: () -> Long = { 0L },
+            /**
+             * R36：Flue 私有准备缓存里、由 [compileInitialScriptForCache] 产出的初始脚本编译产物。
+             * 只跳过**编译**：这里照样新建 Globals、白名单、指令钩子与字符串预算，脚本照样在
+             * 这个全新环境里执行。与当前脚本源码摘要不符或无法解码时静默退回源码编译。
+             */
+            cachedInitialScriptChunk: ByteArray? = null,
         ): WatchFaceLuaRuntime {
             val script = initialScript.orEmpty()
             require(script.toByteArray(Charsets.UTF_8).size <= MAX_SCRIPT_BYTES) {
@@ -966,12 +978,62 @@ class WatchFaceLuaRuntime private constructor(
             )
             if (script.isNotBlank()) {
                 runtime.runLimited {
-                    runtime.compile(spliceTags(script), "=watch_script").call()
+                    val spliced = spliceTags(script)
+                    val chunk = cachedInitialScriptChunk
+                        ?.let { cached -> loadCachedInitialChunk(globals, spliced, cached) }
+                        ?: runtime.compile(spliced, INITIAL_SCRIPT_CHUNK_NAME)
+                    chunk.call()
                     Unit
                 }.getOrThrow()
             }
             return runtime
         }
+
+        private const val INITIAL_SCRIPT_CHUNK_NAME = "=watch_script"
+        private const val CACHED_CHUNK_FORMAT: Int = 1
+        private const val CACHED_CHUNK_DIGEST_BYTES = 32
+
+        /**
+         * R36：把初始脚本（与 [create] 相同的 tag 拼接后）编译成 LuaJ 原型并转储，供 Flue
+         * 私有准备缓存保存。产物前缀是格式字节与拼接后源码的 SHA-256，载入时逐字节核对，
+         * 因此它只能还原**这一份源码**自己的编译结果。表盘包里的 Lua 二进制永远不走这里：
+         * 普通加载仍只接受源码（见 [compile]）。
+         */
+        internal fun compileInitialScriptForCache(initialScript: String?): ByteArray? = runCatching {
+            val script = initialScript.orEmpty()
+            if (script.isBlank() || script.toByteArray(Charsets.UTF_8).size > MAX_SCRIPT_BYTES) {
+                return@runCatching null
+            }
+            val spliced = spliceTags(script)
+            val compiler = Globals()
+            LuaC.install(compiler)
+            val prototype = compiler.compilePrototype(StringReader(spliced), INITIAL_SCRIPT_CHUNK_NAME)
+            val output = ByteArrayOutputStream()
+            output.write(CACHED_CHUNK_FORMAT)
+            output.write(sha256(spliced))
+            DumpState.dump(prototype, output, false)
+            output.toByteArray()
+        }.getOrNull()
+
+        private fun loadCachedInitialChunk(
+            globals: Globals,
+            splicedSource: String,
+            cached: ByteArray,
+        ): LuaValue? = runCatching {
+            val header = 1 + CACHED_CHUNK_DIGEST_BYTES
+            if (cached.size <= header || cached[0].toInt() != CACHED_CHUNK_FORMAT) return@runCatching null
+            val expected = sha256(splicedSource)
+            if (!MessageDigest.isEqual(expected, cached.copyOfRange(1, header))) return@runCatching null
+            val prototype = LoadState.undump(
+                ByteArrayInputStream(cached, header, cached.size - header),
+                INITIAL_SCRIPT_CHUNK_NAME,
+            ) ?: return@runCatching null
+            // 与 Globals.load(String) 的最后一步相同：LuaC 作为 loader，环境就是本运行时的 globals。
+            globals.loader.load(prototype, INITIAL_SCRIPT_CHUNK_NAME, globals)
+        }.getOrNull()
+
+        private fun sha256(source: String): ByteArray =
+            MessageDigest.getInstance("SHA-256").digest(source.toByteArray(Charsets.UTF_8))
 
         /**
          * `WF = { thirdParty = { slots = <惰性 1..10> } }`。

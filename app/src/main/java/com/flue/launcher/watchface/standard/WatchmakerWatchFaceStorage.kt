@@ -5,6 +5,7 @@ import android.net.Uri
 import com.flue.launcher.data.DirectorySwap
 import com.flue.launcher.watchface.WatchFaceDescriptor
 import com.flue.launcher.watchface.WatchFaceType
+import com.flue.launcher.watchface.standard.prepared.WatchmakerPreparedCache
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
@@ -24,7 +25,7 @@ data class WatchmakerWatchFaceScanResult(
 }
 
 object WatchmakerWatchFaceStorage {
-    private const val ROOT_DIRECTORY = "watchmaker_faces"
+    internal const val ROOT_DIRECTORY = "watchmaker_faces"
     private const val MAXIMUM_IMPORT_BYTES = 500L * 1024L * 1024L
     private val recoveryDone = AtomicBoolean(false)
 
@@ -83,6 +84,7 @@ object WatchmakerWatchFaceStorage {
             rootDirectory(context),
             forceNewInstall = forceNewInstall,
         )
+        WatchmakerPreparedCache.invalidate(context, installed.rootDirectory)
         return installed.toDescriptor()
     }
 
@@ -187,6 +189,7 @@ object WatchmakerWatchFaceStorage {
             ?: return false
         if (!installDirectory.exists() || installDirectory.parentFile?.canonicalFile != root) return false
         return installDirectory.deleteRecursively()
+            .also { WatchmakerPreparedCache.invalidate(context, installDirectory) }
     }
 }
 

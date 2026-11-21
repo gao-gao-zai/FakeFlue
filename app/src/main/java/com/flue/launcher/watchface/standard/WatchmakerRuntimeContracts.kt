@@ -3547,7 +3547,11 @@ object WatchmakerExpressionEvaluator {
      * 老路径一行都没删，它既是 fallback 也是回滚开关（计划 §六「老路径被删导致
      * 无法回滚」那条风险）。
      */
-    private fun compiledAttr(source: String, scope: WatchExpressionScope): WatchAttr {
+    private fun compiledAttr(
+        source: String,
+        scope: WatchExpressionScope,
+        prepared: ((String) -> WatchAttr?)? = null,
+    ): WatchAttr {
         // 超过缓存键上限的表达式**不走编译路径**：它每帧都得重新编译，白做一遍功
         // 之后还要再走老路径，比直接走老路径更慢。界线取与 [evaluateLegacy] 的
         // 求值缓存同一个值，两条路径在同一处退化，行为不会分叉。
@@ -3558,8 +3562,11 @@ object WatchmakerExpressionEvaluator {
         }
         // 编译放在锁外：它是这里最慢的一步，占着锁会让渲染线程与资源加载线程
         // 互堵。两条线程同时编译同一条表达式只是白做一次功，产物等价。
-        val attr = runCatching { compileWatchAttr(source, scope) }
-            .getOrDefault(WatchAttr.Unsupported)
+        // R36：持久准备缓存命中时直接用同一引擎、同一静态作用域内容编译出的语法树，
+        // 其余（长度门槛、进程缓存、记账）与现编译完全相同。
+        val attr = prepared?.invoke(source)
+            ?: runCatching { compileWatchAttr(source, scope) }
+                .getOrDefault(WatchAttr.Unsupported)
         val nodeCount = (attr as? WatchAttr.Dynamic)?.nodeCount ?: 1
         synchronized(compileCache) {
             val previous = compileCache.put(key, CompiledAttr(attr, nodeCount))
@@ -3737,6 +3744,17 @@ object WatchmakerExpressionEvaluator {
     fun precompile(
         sources: Collection<String>,
         scope: WatchExpressionScope,
+    ): WatchExpressionCompileReport = precompile(sources, scope, prepared = null, collect = null)
+
+    /**
+     * R36 持久准备缓存入口：[prepared] 提供上次以**相同静态作用域内容**编译出的语法树，
+     * [collect] 收集本次全部编译产物以便后台写入缓存。两者都为 null 时与旧入口逐位相同。
+     */
+    internal fun precompile(
+        sources: Collection<String>,
+        scope: WatchExpressionScope,
+        prepared: ((String) -> WatchAttr?)?,
+        collect: MutableMap<String, WatchAttr>?,
     ): WatchExpressionCompileReport {
         var constant = 0
         var dynamic = 0
@@ -3750,7 +3768,9 @@ object WatchmakerExpressionEvaluator {
             // decoded 与 trimmed 相同时 seen 会自动去重，不必额外判断。
             listOf(trimmed, decoded).forEach { source ->
                 if (!seen.add(source)) return@forEach
-                when (val attr = compiledAttr(source, scope)) {
+                val attr = compiledAttr(source, scope, prepared)
+                collect?.put(source, attr)
+                when (attr) {
                     is WatchAttr.Const -> constant++
                     is WatchAttr.Dynamic -> {
                         dynamic++

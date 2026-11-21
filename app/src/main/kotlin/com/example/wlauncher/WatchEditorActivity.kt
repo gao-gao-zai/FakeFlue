@@ -210,6 +210,7 @@ import com.flue.launcher.ui.common.WfToolsPromoRow
 import com.flue.launcher.viewmodel.LauncherViewModel
 import com.flue.launcher.watchface.WatchFaceDescriptor
 import com.flue.launcher.watchface.WatchFaceType
+import com.flue.launcher.watchface.standard.prepared.WatchmakerPreparedCache
 import com.flue.launcher.watchface.editor.WATCH_EDITOR_EXPRESSION_GROUPS
 import com.flue.launcher.watchface.editor.WatchCanvasSize
 import com.flue.launcher.watchface.editor.WatchEditorHandle
@@ -1615,6 +1616,7 @@ private fun WatchEditorRoute(
                                     syncAgentMirrorFromEditor(active)
                                     if (!createNewLogicalId) {
                                         active.saveCurrentRevision()
+                                            .also { WatchmakerPreparedCache.invalidate(context, it) }
                                         active.logicalId?.let { launcherId ->
                                             WatchStoreRepository(context)
                                                 .detachEditedMarketInstall(launcherId)
