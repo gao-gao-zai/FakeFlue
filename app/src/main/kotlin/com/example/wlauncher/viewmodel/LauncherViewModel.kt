@@ -902,6 +902,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         setState(target)
     }
 
+    /** R09：AodController 熄屏时能否把桌面拉回前台，与本接收器共用同一套例外。 */
+    fun screenOffForegroundAllowed(): Boolean =
+        com.flue.launcher.surface.mode.ThirdPartyScreenOff.foregroundAllowed(
+            scope = surfaceRuntime.controller.configScope.value,
+            keepApp = surfaceRuntime.screenOffKeepApp.value,
+            ownActivityStarted = surfaceRuntime.activityGuard.ownActivityVisibleAround(
+                android.os.SystemClock.elapsedRealtime(),
+            ),
+            inCall = isInCall(),
+        )
+
     private fun retryThirdPartyScreenOffReturn() {
         if (!thirdPartyReturnPending) return
         if (surfaceRuntime.activityGuard.hasStartedActivity || isInCall()) {

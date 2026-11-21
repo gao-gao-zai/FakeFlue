@@ -243,9 +243,10 @@ class LauncherActivity : FlueComponentActivity() {
             this,
             onCollapseOverlays = { vm.setState(ScreenState.Face) },
             onWillForeground = vm::onLauncherAodForeground,
-            // 外部桌面模式下熄屏不能把 FFlue 抢回前台。
+            // 外部桌面模式下熄屏不能把 FFlue 抢回前台；伪装模式下第三方应用熄屏的例外（R09）同样适用。
             foregroundAllowed = {
-                SurfaceRuntime.get(this).controller.mode.value != com.flue.launcher.surface.mode.SurfaceMode.EXTERNAL
+                SurfaceRuntime.get(this).controller.mode.value != com.flue.launcher.surface.mode.SurfaceMode.EXTERNAL &&
+                    vm.screenOffForegroundAllowed()
             },
         )
         aodController.start()

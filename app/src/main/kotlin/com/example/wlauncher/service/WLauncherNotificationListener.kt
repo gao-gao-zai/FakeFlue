@@ -107,7 +107,8 @@ class WLauncherNotificationListener : NotificationListenerService() {
 
         /** 该通知按钮是否因 R11 规则不能直接执行。 */
         fun isActionBlocked(actionKey: String): Boolean =
-            !canOpenDirectly(actionKey.substringBefore(ACTION_KEY_SEPARATOR))
+            // 标签原样进通知 key，可能自己就含分隔符；只去掉最后追加的那段。
+            !canOpenDirectly(actionKey.substringBeforeLast(ACTION_KEY_SEPARATOR))
 
         fun openNotification(key: String): Boolean {
             if (!canOpenDirectly(key)) return false

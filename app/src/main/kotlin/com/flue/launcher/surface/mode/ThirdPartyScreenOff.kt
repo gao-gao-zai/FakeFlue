@@ -15,4 +15,15 @@ object ThirdPartyScreenOff {
         ownActivityStarted: Boolean,
         inCall: Boolean,
     ): Boolean = scope == ConfigScope.DISGUISE && !keepApp && !ownActivityStarted && !inCall
+
+    /**
+     * 熄屏时其他路径（息屏显示唤回等）能否把桌面拉到前台：伪装模式下在第三方应用里熄屏，
+     * 选了继续原应用或正在通话时不能。本应用页面在前台、或不在伪装模式时不受此限。
+     */
+    fun foregroundAllowed(
+        scope: ConfigScope,
+        keepApp: Boolean,
+        ownActivityStarted: Boolean,
+        inCall: Boolean,
+    ): Boolean = scope != ConfigScope.DISGUISE || ownActivityStarted || (!keepApp && !inCall)
 }

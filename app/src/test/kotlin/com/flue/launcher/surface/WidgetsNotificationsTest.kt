@@ -111,4 +111,20 @@ class WidgetsNotificationsTest {
         assertFalse(ret(own = true))
         assertFalse(ret(call = true))
     }
+
+    @Test
+    fun otherScreenOffForegroundPathsHonorSameExemptions() {
+        fun allowed(
+            scope: ConfigScope = ConfigScope.DISGUISE,
+            keep: Boolean = false,
+            own: Boolean = false,
+            call: Boolean = false,
+        ) = ThirdPartyScreenOff.foregroundAllowed(scope, keep, own, call)
+        assertTrue(allowed())
+        assertFalse(allowed(keep = true))
+        assertFalse(allowed(call = true))
+        // 桌面自己在前台（息屏显示）或完整模式：保持原行为。
+        assertTrue(allowed(own = true, keep = true, call = true))
+        assertTrue(allowed(scope = ConfigScope.FULL, keep = true, call = true))
+    }
 }
