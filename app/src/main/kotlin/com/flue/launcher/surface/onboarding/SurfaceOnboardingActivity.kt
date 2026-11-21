@@ -21,6 +21,8 @@ import com.flue.launcher.R
 import com.flue.launcher.i18n.FlueComponentActivity
 import com.flue.launcher.surface.SurfaceHome
 import com.flue.launcher.surface.SurfaceRuntime
+import com.flue.launcher.surface.entry.DisguiseEntry
+import com.flue.launcher.surface.entry.EntryOrigin
 import com.flue.launcher.surface.mode.DefaultHomeResult
 import com.flue.launcher.surface.mode.ModeSwitchResult
 import com.flue.launcher.surface.mode.SurfaceMode
@@ -40,7 +42,7 @@ import com.flue.launcher.viewmodel.LauncherViewModel
  * R18 首次使用路径：欢迎 → 选择完整／伪装 → 公共默认桌面引导（可跳过）。
  *
  * 默认桌面只有读回系统实际 HOME 为本应用后才显示成功；打开过设置页、取消或跳过都不算成功。
- * 选择伪装桌面后的专属配置与教程在 P4 接入。
+ * 选择伪装桌面时先完成专属配置和教程（[DisguiseEntry]），进入伪装后回到默认桌面这一步。
  */
 class SurfaceOnboardingActivity : FlueComponentActivity() {
 
@@ -55,7 +57,10 @@ class SurfaceOnboardingActivity : FlueComponentActivity() {
             val screenShape by vm.screenShapeOverride.collectAsStateWithLifecycle()
             WatchLauncherTheme(themeMode = themeMode, uiStyle = uiStyle, screenShape = screenShape) {
                 ProvideGlobalUiScale(globalUiScalePercent) {
-                    OnboardingFlow(onFinished = ::finishOnboarding)
+                    OnboardingFlow(
+                        resumeDefaultHome = intent.getBooleanExtra(EXTRA_RESUME_DEFAULT_HOME, false),
+                        onFinished = ::finishOnboarding,
+                    )
                 }
             }
         }
@@ -75,6 +80,17 @@ class SurfaceOnboardingActivity : FlueComponentActivity() {
     }
 
     companion object {
+        private const val EXTRA_RESUME_DEFAULT_HOME = "com.flue.launcher.extra.ONBOARDING_RESUME_DEFAULT_HOME"
+
+        /** 选择伪装后走完配置和教程、已经进入伪装：回到默认桌面引导这一步（R18）。 */
+        fun resumeDefaultHome(context: Context) {
+            context.startActivity(
+                Intent(context, SurfaceOnboardingActivity::class.java)
+                    .putExtra(EXTRA_RESUME_DEFAULT_HOME, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+        }
+
         fun start(context: Context) {
             context.startActivity(
                 Intent(context, SurfaceOnboardingActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -86,11 +102,13 @@ class SurfaceOnboardingActivity : FlueComponentActivity() {
 private enum class OnboardingStep { WELCOME, CHOOSE_MODE, DEFAULT_HOME }
 
 @Composable
-private fun OnboardingFlow(onFinished: (SurfaceMode) -> Unit) {
+private fun OnboardingFlow(resumeDefaultHome: Boolean, onFinished: (SurfaceMode) -> Unit) {
     val context = LocalContext.current
     val activity = context as? FlueComponentActivity
     val runtime = remember(context) { SurfaceRuntime.get(context) }
-    var step by rememberSaveable { mutableStateOf(OnboardingStep.WELCOME) }
+    var step by rememberSaveable {
+        mutableStateOf(if (resumeDefaultHome) OnboardingStep.DEFAULT_HOME else OnboardingStep.WELCOME)
+    }
     var chosen by rememberSaveable { mutableStateOf(runtime.controller.mode.value) }
     var skipRequested by rememberSaveable { mutableStateOf(false) }
 
@@ -139,11 +157,18 @@ private fun OnboardingFlow(onFinished: (SurfaceMode) -> Unit) {
                             subtitle = stringResource(mode.descriptionRes()),
                             onClick = {
                                 val result = runtime.controller.switchTo(mode)
-                                if (result == ModeSwitchResult.Success || result == ModeSwitchResult.AlreadyInMode) {
-                                    chosen = mode
-                                    step = OnboardingStep.DEFAULT_HOME
-                                } else {
-                                    context.reportModeSwitch(result, mode)
+                                when {
+                                    result == ModeSwitchResult.Success || result == ModeSwitchResult.AlreadyInMode -> {
+                                        chosen = mode
+                                        step = OnboardingStep.DEFAULT_HOME
+                                    }
+                                    // 伪装还缺专属配置或教程：先去完成，走完后回到默认桌面引导（R18）。
+                                    result is ModeSwitchResult.Blocked -> DisguiseEntry.openRequirement(
+                                        context,
+                                        result.requirement,
+                                        EntryOrigin.ONBOARDING,
+                                    )
+                                    else -> context.reportModeSwitch(result, mode)
                                 }
                             },
                             last = index == 1,

@@ -41,6 +41,9 @@ import com.flue.launcher.surface.mode.DisguiseEntryRequirement
 import com.flue.launcher.surface.secret.SecretInterruptions
 import com.flue.launcher.surface.secret.SecretRead
 import com.flue.launcher.surface.secret.SecretStore
+import com.flue.launcher.surface.setup.DisguiseSetupRules
+import com.flue.launcher.surface.setup.DisguiseSetupStep
+import com.flue.launcher.surface.tutorial.TutorialRules
 import kotlinx.coroutines.flow.collectLatest
 import com.flue.launcher.surface.apps.PublicAppOverride
 import com.flue.launcher.surface.apps.PublicAppOverrides
@@ -64,13 +67,38 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     val controller = SurfaceModeController(
         storage = stateStore,
-        // 没有可读的隐藏密码就不能进入伪装模式，否则进去后没有回来的入口（R12、R19）。
-        // 教程门槛在 P4 接入（R22）。
+        // 所有进入伪装的路径都在这里检查：基础配置（含可读的隐藏密码，否则进去后没有回来的入口）
+        // 和当前版本的教程成绩（R12、R19、R22）。
         gate = DisguiseEntryGate {
-            if (secretStore.read() is SecretRead.Available) null else DisguiseEntryRequirement.BASE_CONFIGURATION
+            when {
+                !baseConfigured() -> DisguiseEntryRequirement.BASE_CONFIGURATION
+                !TutorialRules.passes(stateStore.tutorialVersion) -> DisguiseEntryRequirement.TUTORIAL
+                else -> null
+            }
         },
         effects = effects,
     )
+
+    /** R19：伪装专属配置里已确认的步骤。 */
+    fun disguiseSetupDone(): Set<DisguiseSetupStep> = DisguiseSetupStep.parse(stateStore.disguiseSetupSteps)
+
+    fun markDisguiseSetupStep(step: DisguiseSetupStep) {
+        stateStore.disguiseSetupSteps = stateStore.disguiseSetupSteps + step.name
+    }
+
+    /** 基础配置完成：全部步骤确认过，且隐藏密码可读（R18、R19）。 */
+    fun baseConfigured(): Boolean =
+        DisguiseSetupRules.baseConfigured(disguiseSetupDone(), secretStore.read() is SecretRead.Available)
+
+    private val _tutorialVersion = MutableStateFlow(stateStore.tutorialVersion)
+
+    /** 已通过的教程版本（R22）；ADB 跳过也会更新它，前台教程据此继续。 */
+    val tutorialVersion: StateFlow<Int> = _tutorialVersion.asStateFlow()
+
+    fun recordTutorialPassed() {
+        stateStore.tutorialVersion = TutorialRules.VERSION
+        _tutorialVersion.value = TutorialRules.VERSION
+    }
 
     /** 原版代码读写 `launcher_settings` 时应使用的存储（R06）。 */
     val launcherSettings: DataStore<Preferences> = ModeScopedDataStore(app.dataStore, controller.configScope)
@@ -156,6 +184,14 @@ class SurfaceRuntime private constructor(private val app: Application) {
         val dir = publicIconDir()
         val files = dir.list()?.toList().orEmpty()
         PublicAppOverrides.orphanIcons(result, files).forEach { java.io.File(dir, it).delete() }
+    }
+
+    /** 伪装模式当前选中的表盘 ID（R19 初始表盘）；不论当前模式。 */
+    suspend fun disguiseWatchFace(): String? =
+        app.dataStore.data.first()[stringPreferencesKey(disguiseName(KEY_SELECTED_WATCHFACE))]
+
+    suspend fun saveDisguiseWatchFace(id: String) {
+        app.dataStore.edit { prefs -> prefs[stringPreferencesKey(disguiseName(KEY_SELECTED_WATCHFACE))] = id }
     }
 
     /** 隐藏完整抽屉里置顶的应用（componentKey）。 */

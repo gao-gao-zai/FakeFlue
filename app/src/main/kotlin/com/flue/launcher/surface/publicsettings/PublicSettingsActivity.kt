@@ -99,6 +99,9 @@ class PublicSettingsActivity : FlueComponentActivity() {
                     onOpenFullSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
                     onChangeSecret = { startActivity(SecretSetupActivity.intent(this, SecretSetupMode.MAINTAIN)) },
                     onSwitch = ::switchMode,
+                    onOpenTutorial = {
+                        startActivity(com.flue.launcher.surface.tutorial.TutorialActivity.intent(this))
+                    },
                 )
             }
 

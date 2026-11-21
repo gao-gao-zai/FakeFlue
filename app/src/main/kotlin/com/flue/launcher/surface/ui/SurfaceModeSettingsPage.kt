@@ -18,7 +18,12 @@ import com.flue.launcher.surface.SurfaceHome
 import com.flue.launcher.surface.SurfaceRuntime
 import com.flue.launcher.surface.mode.SurfaceMode
 import com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity
+import com.flue.launcher.surface.entry.DisguiseEntry
+import com.flue.launcher.surface.entry.EntryOrigin
 import com.flue.launcher.surface.secret.SecretRead
+import com.flue.launcher.surface.setup.DisguiseSetupActivity
+import com.flue.launcher.surface.tutorial.TutorialActivity
+import com.flue.launcher.surface.tutorial.TutorialRules
 import com.flue.launcher.surface.secret.SecretSetupActivity
 import com.flue.launcher.surface.secret.SecretSetupMode
 import com.flue.launcher.ui.settings.agent.AgentSettingsEntry
@@ -40,6 +45,7 @@ internal fun SurfaceModeSettingsPage(
     onOpenAboutOverrides: () -> Unit,
     onOpenNotificationApps: () -> Unit,
     onOpenPublicOverrides: () -> Unit,
+    onOpenPermissions: () -> Unit,
 ) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
@@ -64,6 +70,8 @@ internal fun SurfaceModeSettingsPage(
     }
     val keepAppOnScreenOff by runtime.screenOffKeepApp.collectAsState()
     val secretState = remember(resumeTick) { runtime.secretStore.read() }
+    val setupDone = remember(resumeTick) { runtime.disguiseSetupDone().size }
+    val tutorialVersion by runtime.tutorialVersion.collectAsState()
     val scope = rememberCoroutineScope()
 
     fun switch(target: SurfaceMode) {
@@ -91,7 +99,8 @@ internal fun SurfaceModeSettingsPage(
                     AgentSettingsEntry(
                         title = stringResource(R.string.surface_action_enter_disguise),
                         subtitle = stringResource(R.string.surface_mode_disguise_desc),
-                        onClick = { switch(SurfaceMode.DISGUISE) },
+                        // 缺专属配置或教程时打开对应页面，走完再进入（R18、R22）。
+                        onClick = { DisguiseEntry.request(context, EntryOrigin.SETTINGS) },
                     )
                 }
                 if (mode != SurfaceMode.FULL) {
@@ -112,6 +121,28 @@ internal fun SurfaceModeSettingsPage(
         }
         item(key = "surface_disguise") {
             AgentSettingsGroup(stringResource(R.string.surface_mode_disguise)) {
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_setup_title),
+                    subtitle = stringResource(
+                        R.string.surface_setup_entry_sub,
+                        setupDone,
+                        com.flue.launcher.surface.setup.DisguiseSetupStep.entries.size,
+                    ),
+                    onClick = { context.startActivity(DisguiseSetupActivity.intent(context)) },
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_tutorial_title),
+                    subtitle = stringResource(
+                        if (TutorialRules.passes(tutorialVersion)) R.string.surface_tutorial_entry_passed
+                        else R.string.surface_tutorial_entry_pending,
+                    ),
+                    onClick = { context.startActivity(TutorialActivity.intent(context)) },
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_perm_title),
+                    subtitle = stringResource(R.string.surface_perm_entry_sub),
+                    onClick = onOpenPermissions,
+                )
                 AgentSettingsEntry(
                     title = stringResource(R.string.surface_secret_title),
                     subtitle = stringResource(

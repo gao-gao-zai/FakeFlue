@@ -39,8 +39,32 @@ class SurfaceStateStore(private val prefs: SharedPreferences) : SurfaceStateStor
             prefs.edit().putString(KEY_DEFAULT_HOME_RESULT, value.name).commit()
         }
 
+    /** R18/R19：伪装专属配置里已确认的步骤（[com.flue.launcher.surface.setup.DisguiseSetupStep] 的名字）。 */
+    var disguiseSetupSteps: Set<String>
+        get() = prefs.getStringSet(KEY_DISGUISE_SETUP_STEPS, null)?.toSet().orEmpty()
+        set(value) {
+            prefs.edit().putStringSet(KEY_DISGUISE_SETUP_STEPS, value.toSet()).commit()
+        }
+
+    /** R22：通过的教程版本；0 表示没有成绩。 */
+    var tutorialVersion: Int
+        get() = prefs.getInt(KEY_TUTORIAL_VERSION, 0)
+        set(value) {
+            prefs.edit().putInt(KEY_TUTORIAL_VERSION, value).commit()
+        }
+
+    /** R19：退出伪装时优先的去处（完整 FFlue 或外部桌面），管理菜单据此排序。 */
+    var preferredExit: SurfaceMode
+        get() = if (prefs.getString(KEY_PREFERRED_EXIT, null) == SurfaceMode.EXTERNAL.name) SurfaceMode.EXTERNAL else SurfaceMode.FULL
+        set(value) {
+            prefs.edit().putString(KEY_PREFERRED_EXIT, value.name).commit()
+        }
+
     companion object {
         const val FILE_NAME = "fflue_surface_state"
+        const val KEY_DISGUISE_SETUP_STEPS = "disguise_setup_steps"
+        const val KEY_TUTORIAL_VERSION = "tutorial_version"
+        const val KEY_PREFERRED_EXIT = "preferred_exit"
         const val KEY_MODE = "mode"
         const val KEY_EXTERNAL_TARGET = "external_home_target"
         const val KEY_WELCOME_COMPLETED = "welcome_completed"
