@@ -285,7 +285,9 @@ fun AppShortcutOverlay(
                                     onDismiss()
                                 }
                             }
-                            if (!app.isBuiltInSettingsEntry) {
+                            if (!app.isBuiltInSettingsEntry &&
+                                !com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolComponentKey(app.componentKey)
+                            ) {
                                 Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(Color(0xFF48484A)))
                                 ShortcutMenuItem(
                                     stringResource(R.string.shortcut_menu_uninstall),

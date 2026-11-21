@@ -42,6 +42,12 @@
          then those tags render as unavailable and nothing is queried. -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- R31 内置闹钟、计时器：到点通知（Android 13+ 运行时请求）、精确定时（Android 12+ 由用户在系统页允许，
+         未允许时降级为可能推迟的定时并在页面说明）、开机后重新登记、到点时点亮屏幕显示关闭按钮。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
         android:name=".FlueApplication"
@@ -295,6 +301,99 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.WatchLauncher"
             android:screenOrientation="portrait" />
+
+        <!--
+          R31 内置工具：电池、闹钟、计时器、秒表、计算器。带 LAUNCHER 入口，应用列表照常查询到；
+          完整、伪装两种模式都能打开（伪装模式视为内置应用，总是公开）。各自独立任务，返回即关闭。
+          exported 是 LAUNCHER 入口的要求；页面只显示本应用自己的数据，不接受外部参数。
+        -->
+        <activity
+            android:name="com.flue.launcher.surface.tools.BatteryToolActivity"
+            android:exported="true"
+            android:label="@string/surface_tool_battery_title"
+            android:icon="@mipmap/ic_surface_tool_battery"
+            android:roundIcon="@mipmap/ic_surface_tool_battery"
+            android:taskAffinity="${applicationId}.tool.battery"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.flue.launcher.surface.tools.AlarmToolActivity"
+            android:exported="true"
+            android:label="@string/surface_tool_alarm_title"
+            android:icon="@mipmap/ic_surface_tool_alarm"
+            android:roundIcon="@mipmap/ic_surface_tool_alarm"
+            android:taskAffinity="${applicationId}.tool.alarm"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.flue.launcher.surface.tools.TimerToolActivity"
+            android:exported="true"
+            android:label="@string/surface_tool_timer_title"
+            android:icon="@mipmap/ic_surface_tool_timer"
+            android:roundIcon="@mipmap/ic_surface_tool_timer"
+            android:taskAffinity="${applicationId}.tool.timer"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.flue.launcher.surface.tools.StopwatchToolActivity"
+            android:exported="true"
+            android:label="@string/surface_tool_stopwatch_title"
+            android:icon="@mipmap/ic_surface_tool_stopwatch"
+            android:roundIcon="@mipmap/ic_surface_tool_stopwatch"
+            android:taskAffinity="${applicationId}.tool.stopwatch"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.flue.launcher.surface.tools.CalculatorToolActivity"
+            android:exported="true"
+            android:label="@string/surface_tool_calculator_title"
+            android:icon="@mipmap/ic_surface_tool_calculator"
+            android:roundIcon="@mipmap/ic_surface_tool_calculator"
+            android:taskAffinity="${applicationId}.tool.calculator"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- R31 工具提醒：到点、关闭按钮（本应用显式 PendingIntent）与开机／改时间后的复算（系统发送）。不导出。 -->
+        <receiver
+            android:name="com.flue.launcher.surface.tools.alert.ToolAlertReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".CrashActivity"

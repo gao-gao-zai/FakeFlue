@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="surface_tool_battery_title">バッテリー</string>
+    <string name="surface_tool_alarm_title">アラーム</string>
+    <string name="surface_tool_timer_title">タイマー</string>
+    <string name="surface_tool_stopwatch_title">ストップウォッチ</string>
+    <string name="surface_tool_calculator_title">電卓</string>
+
+    <string name="surface_tool_start">開始</string>
+    <string name="surface_tool_pause">一時停止</string>
+    <string name="surface_tool_resume">再開</string>
+    <string name="surface_tool_cancel">キャンセル</string>
+    <string name="surface_tool_restart">もう一度</string>
+    <string name="surface_tool_reset">リセット</string>
+    <string name="surface_tool_dismiss">停止</string>
+    <string name="surface_tool_save">保存</string>
+    <string name="surface_tool_delete">削除</string>
+    <string name="surface_tool_today">今日</string>
+    <string name="surface_tool_tomorrow">明日</string>
+    <string name="surface_tool_unit_hours">時</string>
+    <string name="surface_tool_unit_minutes">分</string>
+    <string name="surface_tool_unit_seconds">秒</string>
+    <string name="surface_tool_decrease">%1$sを減らす</string>
+    <string name="surface_tool_increase">%1$sを増やす</string>
+    <string name="surface_tool_late_suffix">（定刻どおりではありません）</string>
+
+    <string name="surface_tool_channel_ring">アラームとタイマーの鳴動</string>
+    <string name="surface_tool_channel_ring_desc">アラームやタイマーの時刻に鳴動・振動します</string>
+    <string name="surface_tool_channel_missed">見逃したアラーム</string>
+
+    <string name="surface_tool_notice_no_notify_title">時間になっても通知できません</string>
+    <string name="surface_tool_notice_no_notify_full">FFlue の通知が許可されていないため、アラームとタイマーは鳴りません。タップして許可します。</string>
+    <string name="surface_tool_notice_no_notify_public">現在このアプリの通知はオフのため鳴りません。このページを開いている間だけ時間切れを表示します。</string>
+    <string name="surface_tool_notice_inexact_title">通知が遅れる場合があります</string>
+    <string name="surface_tool_notice_inexact_full">正確なアラームが許可されていないため、通知が数分遅れることがあります。タップして許可します。</string>
+    <string name="surface_tool_notice_inexact_public">システムが通知を遅らせることがあり、数分遅れて鳴る場合があります。</string>
+
+    <string name="surface_tool_battery_absent">バッテリーが検出されません</string>
+    <string name="surface_tool_battery_status">充電状態</string>
+    <string name="surface_tool_battery_plugged">電源</string>
+    <string name="surface_tool_battery_full_in">フル充電まで</string>
+    <string name="surface_tool_battery_hours_minutes">%1$d 時間 %2$d 分</string>
+    <string name="surface_tool_battery_health">状態</string>
+    <string name="surface_tool_battery_temperature">温度</string>
+    <string name="surface_tool_battery_voltage">電圧</string>
+    <string name="surface_tool_battery_technology">電池の種類</string>
+    <string name="surface_tool_battery_note">システムからのリアルタイムの値です。取得できない項目は「不明」と表示します。</string>
+    <string name="surface_tool_battery_plug_none">バッテリー駆動</string>
+    <string name="surface_tool_battery_plug_ac">AC 電源</string>
+    <string name="surface_tool_battery_plug_usb">USB</string>
+    <string name="surface_tool_battery_plug_wireless">ワイヤレス充電</string>
+    <string name="surface_tool_battery_plug_dock">ドック</string>
+    <string name="surface_tool_battery_health_good">良好</string>
+    <string name="surface_tool_battery_health_overheat">過熱</string>
+    <string name="surface_tool_battery_health_dead">劣化（使用不可）</string>
+    <string name="surface_tool_battery_health_over_voltage">過電圧</string>
+    <string name="surface_tool_battery_health_failure">異常</string>
+    <string name="surface_tool_battery_health_cold">低温</string>
+
+    <string name="surface_tool_timer_state_idle">時間を設定</string>
+    <string name="surface_tool_timer_state_running">計測中</string>
+    <string name="surface_tool_timer_state_paused">一時停止中</string>
+    <string name="surface_tool_timer_state_fired">時間です</string>
+    <string name="surface_tool_timer_preset">%1$d 分</string>
+    <string name="surface_tool_timer_estimated">端末が再起動したため、残り時間はシステム時刻から推定しています。</string>
+    <string name="surface_tool_timer_late">この通知は定刻どおりではありません（電源オフ、アプリの停止、またはシステムによる遅延）。</string>
+    <string name="surface_tool_timer_notify_title">タイマー終了</string>
+    <string name="surface_tool_timer_notify_text">%1$s が経過しました</string>
+
+    <string name="surface_tool_stopwatch_ready">開始をタップ</string>
+    <string name="surface_tool_stopwatch_reboot_reset">端末が再起動しました。電源オフ中は正確に計測できないため、計測中のストップウォッチをリセットしました。</string>
+    <string name="surface_tool_lap">ラップ</string>
+    <string name="surface_tool_laps">ラップ記録</string>
+    <string name="surface_tool_lap_n">ラップ %1$d</string>
+
+    <string name="surface_tool_alarm_add">アラームを追加</string>
+    <string name="surface_tool_alarm_edit">アラームを編集</string>
+    <string name="surface_tool_alarm_empty">アラームはありません。</string>
+    <string name="surface_tool_alarm_ringing">鳴動中</string>
+    <string name="surface_tool_alarm_off">オフ</string>
+    <string name="surface_tool_alarm_next">次回 %1$s</string>
+    <string name="surface_tool_alarm_once">1 回のみ</string>
+    <string name="surface_tool_alarm_daily">毎日</string>
+    <string name="surface_tool_alarm_workdays">平日</string>
+    <string name="surface_tool_alarm_notify_title">アラーム</string>
+    <string name="surface_tool_alarm_missed_title">見逃したアラーム</string>
+    <string name="surface_tool_alarm_missed_text">%1$s のアラームは電源オフ中または通知の遅延により見逃されました</string>
+
+    <string name="surface_tool_calc_clear">クリア</string>
+    <string name="surface_tool_calc_negate">符号の切り替え</string>
+    <string name="surface_tool_calc_backspace">1 文字削除</string>
+    <string name="surface_tool_calc_error_syntax">式が不完全です</string>
+    <string name="surface_tool_calc_error_divide">0 で割ることはできません</string>
+    <string name="surface_tool_calc_error_overflow">範囲外の値です</string>
+
+    <string name="surface_tool_perm_notifications">通知（アラーム・タイマーの鳴動）</string>
+    <string name="surface_tool_perm_exact_alarm">正確なアラーム（定刻の通知）</string>
+</resources>

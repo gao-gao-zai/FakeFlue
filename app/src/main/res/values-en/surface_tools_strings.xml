@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="surface_tool_battery_title">Battery</string>
+    <string name="surface_tool_alarm_title">Alarms</string>
+    <string name="surface_tool_timer_title">Timer</string>
+    <string name="surface_tool_stopwatch_title">Stopwatch</string>
+    <string name="surface_tool_calculator_title">Calculator</string>
+
+    <string name="surface_tool_start">Start</string>
+    <string name="surface_tool_pause">Pause</string>
+    <string name="surface_tool_resume">Resume</string>
+    <string name="surface_tool_cancel">Cancel</string>
+    <string name="surface_tool_restart">Again</string>
+    <string name="surface_tool_reset">Reset</string>
+    <string name="surface_tool_dismiss">Dismiss</string>
+    <string name="surface_tool_save">Save</string>
+    <string name="surface_tool_delete">Delete</string>
+    <string name="surface_tool_today">Today</string>
+    <string name="surface_tool_tomorrow">Tomorrow</string>
+    <string name="surface_tool_unit_hours">Hours</string>
+    <string name="surface_tool_unit_minutes">Minutes</string>
+    <string name="surface_tool_unit_seconds">Seconds</string>
+    <string name="surface_tool_decrease">Decrease %1$s</string>
+    <string name="surface_tool_increase">Increase %1$s</string>
+    <string name="surface_tool_late_suffix"> (not on time)</string>
+
+    <string name="surface_tool_channel_ring">Alarm and timer ringing</string>
+    <string name="surface_tool_channel_ring_desc">Rings and vibrates when an alarm or timer goes off</string>
+    <string name="surface_tool_channel_missed">Missed alarms</string>
+
+    <string name="surface_tool_notice_no_notify_title">Can\'t alert when time is up</string>
+    <string name="surface_tool_notice_no_notify_full">FFlue isn\'t allowed to post notifications, so alarms and timers won\'t ring. Tap to allow.</string>
+    <string name="surface_tool_notice_no_notify_public">Notifications from this app are currently off, so nothing will ring; time-up is only shown while this page is open.</string>
+    <string name="surface_tool_notice_inexact_title">Alerts may be late</string>
+    <string name="surface_tool_notice_inexact_full">Exact alarms aren\'t allowed, so the system may delay alerts by a few minutes. Tap to allow.</string>
+    <string name="surface_tool_notice_inexact_public">The system may delay alerts; they may ring a few minutes late.</string>
+
+    <string name="surface_tool_battery_absent">No battery detected</string>
+    <string name="surface_tool_battery_status">Charging status</string>
+    <string name="surface_tool_battery_plugged">Power source</string>
+    <string name="surface_tool_battery_full_in">Time to full</string>
+    <string name="surface_tool_battery_hours_minutes">%1$d h %2$d min</string>
+    <string name="surface_tool_battery_health">Health</string>
+    <string name="surface_tool_battery_temperature">Temperature</string>
+    <string name="surface_tool_battery_voltage">Voltage</string>
+    <string name="surface_tool_battery_technology">Technology</string>
+    <string name="surface_tool_battery_note">Live data from the system. Items that can\'t be read show “Unknown”.</string>
+    <string name="surface_tool_battery_plug_none">On battery</string>
+    <string name="surface_tool_battery_plug_ac">AC power</string>
+    <string name="surface_tool_battery_plug_usb">USB</string>
+    <string name="surface_tool_battery_plug_wireless">Wireless</string>
+    <string name="surface_tool_battery_plug_dock">Dock</string>
+    <string name="surface_tool_battery_health_good">Good</string>
+    <string name="surface_tool_battery_health_overheat">Overheated</string>
+    <string name="surface_tool_battery_health_dead">Dead</string>
+    <string name="surface_tool_battery_health_over_voltage">Over voltage</string>
+    <string name="surface_tool_battery_health_failure">Failure</string>
+    <string name="surface_tool_battery_health_cold">Too cold</string>
+
+    <string name="surface_tool_timer_state_idle">Set duration</string>
+    <string name="surface_tool_timer_state_running">Running</string>
+    <string name="surface_tool_timer_state_paused">Paused</string>
+    <string name="surface_tool_timer_state_fired">Time\'s up</string>
+    <string name="surface_tool_timer_preset">%1$d min</string>
+    <string name="surface_tool_timer_estimated">The device restarted; the remaining time is estimated from the system clock.</string>
+    <string name="surface_tool_timer_late">This alert was late: the device was off, the app was stopped, or the system delayed it.</string>
+    <string name="surface_tool_timer_notify_title">Timer finished</string>
+    <string name="surface_tool_timer_notify_text">%1$s is up</string>
+
+    <string name="surface_tool_stopwatch_ready">Tap Start</string>
+    <string name="surface_tool_stopwatch_reboot_reset">The device restarted. Time can\'t be measured while it\'s off, so the running stopwatch was reset.</string>
+    <string name="surface_tool_lap">Lap</string>
+    <string name="surface_tool_laps">Laps</string>
+    <string name="surface_tool_lap_n">Lap %1$d</string>
+
+    <string name="surface_tool_alarm_add">New alarm</string>
+    <string name="surface_tool_alarm_edit">Edit alarm</string>
+    <string name="surface_tool_alarm_empty">No alarms yet.</string>
+    <string name="surface_tool_alarm_ringing">Ringing</string>
+    <string name="surface_tool_alarm_off">Off</string>
+    <string name="surface_tool_alarm_next">Next %1$s</string>
+    <string name="surface_tool_alarm_once">Once</string>
+    <string name="surface_tool_alarm_daily">Every day</string>
+    <string name="surface_tool_alarm_workdays">Weekdays</string>
+    <string name="surface_tool_alarm_notify_title">Alarm</string>
+    <string name="surface_tool_alarm_missed_title">Missed alarm</string>
+    <string name="surface_tool_alarm_missed_text">The %1$s alarm was missed while the device was off or the alert was delayed</string>
+
+    <string name="surface_tool_calc_clear">Clear</string>
+    <string name="surface_tool_calc_negate">Plus/minus</string>
+    <string name="surface_tool_calc_backspace">Backspace</string>
+    <string name="surface_tool_calc_error_syntax">Incomplete expression</string>
+    <string name="surface_tool_calc_error_divide">Can\'t divide by 0</string>
+    <string name="surface_tool_calc_error_overflow">Out of range</string>
+
+    <string name="surface_tool_perm_notifications">Notifications (alarm and timer ringing)</string>
+    <string name="surface_tool_perm_exact_alarm">Exact alarms (on-time alerts)</string>
+</resources>

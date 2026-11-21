@@ -90,7 +90,10 @@ internal fun PublicAppPickerPage(
         val publicApps = publicSnapshot ?: return@produceState
         value = withContext(Dispatchers.Default) {
             val latin = HanLatin.create()
-            apps.filterNot { it.isBuiltInSettingsEntry || it.isFolder }
+            apps.filterNot {
+                it.isBuiltInSettingsEntry || it.isFolder ||
+                    com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolComponentKey(it.componentKey)
+            }
                 .let { list ->
                     when (purpose) {
                         AppPickerPurpose.PUBLIC_APPS -> list
