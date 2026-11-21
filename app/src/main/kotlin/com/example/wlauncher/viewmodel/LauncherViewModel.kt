@@ -269,6 +269,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         /** R09 伪装模式第三方应用熄屏后是否继续原应用；读写在 SurfaceRuntime。 */
         val KEY_SCREEN_OFF_KEEP_APP =
             booleanPreferencesKey(com.flue.launcher.surface.mode.ThirdPartyScreenOff.KEY)
+        /** R10 伪装模式公开名称／图标覆盖；读写在 SurfaceRuntime。 */
+        val KEY_PUBLIC_APP_OVERRIDES =
+            stringPreferencesKey(com.flue.launcher.surface.apps.PublicAppOverrides.KEY)
+        /** R10 隐藏完整抽屉的置顶应用；读写在 SurfaceRuntime。 */
+        val KEY_HIDDEN_DRAWER_PINNED =
+            stringPreferencesKey(com.flue.launcher.surface.apps.HiddenDrawerCatalog.PINNED_KEY)
         val KEY_ICON_PACK_PACKAGE = stringPreferencesKey("icon_pack_package")
         val KEY_SELECTED_WATCHFACE_ID = stringPreferencesKey("selected_watchface_id")
         val KEY_LAST_WATCHFACE_ERROR = stringPreferencesKey("last_watchface_error")

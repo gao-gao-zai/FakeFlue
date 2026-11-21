@@ -133,4 +133,21 @@
     <string name="surface_notification_allow_entry_sub">Also showing notifications from %1$d apps</string>
     <string name="surface_screen_off_keep_app_title">Keep app after screen off</string>
     <string name="surface_screen_off_keep_app_sub">When off, turning the screen off inside another app returns to the watch face on next wake (except during calls)</string>
+    <string name="surface_shortcut_blocked">Shortcuts can\'t be added to the disguise launcher</string>
+    <string name="surface_public_overrides_title">Public names and icons</string>
+    <string name="surface_public_overrides_subtitle">Changes only the disguise launcher; the full launcher stays the same</string>
+    <string name="surface_public_overrides_entry_sub">Rename public apps or give them a different icon</string>
+    <string name="surface_public_overrides_unchanged">Unchanged</string>
+    <string name="surface_public_overrides_original">Original: %1$s</string>
+    <string name="surface_public_overrides_edit_title">Edit name and icon</string>
+    <string name="surface_public_overrides_name">Public name (blank = original)</string>
+    <string name="surface_public_overrides_pick_icon">Choose an image as icon</string>
+    <string name="surface_public_overrides_reset_icon">Restore original icon</string>
+    <string name="surface_public_overrides_reset_all">Restore everything</string>
+    <string name="surface_public_overrides_icon_failed">Couldn\'t read this image</string>
+    <string name="surface_hidden_drawer_title">All apps</string>
+    <string name="surface_hidden_drawer_subtitle">Every installed app; long-press to pin</string>
+    <string name="surface_hidden_drawer_entry_sub">Temporary entry; will move behind control center verification</string>
+    <string name="surface_hidden_drawer_launch_failed">Couldn\'t open this app</string>
+    <string name="surface_hidden_drawer_pinned_mark">Pinned</string>
 </resources>

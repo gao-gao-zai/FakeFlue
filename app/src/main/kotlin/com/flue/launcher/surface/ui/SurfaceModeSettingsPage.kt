@@ -36,6 +36,7 @@ internal fun SurfaceModeSettingsPage(
     onOpenPublicApps: () -> Unit,
     onOpenAboutOverrides: () -> Unit,
     onOpenNotificationApps: () -> Unit,
+    onOpenPublicOverrides: () -> Unit,
 ) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
@@ -113,6 +114,11 @@ internal fun SurfaceModeSettingsPage(
                     onClick = onOpenPublicApps,
                 )
                 AgentSettingsEntry(
+                    title = stringResource(R.string.surface_public_overrides_title),
+                    subtitle = stringResource(R.string.surface_public_overrides_entry_sub),
+                    onClick = onOpenPublicOverrides,
+                )
+                AgentSettingsEntry(
                     title = stringResource(R.string.surface_notification_allow_title),
                     subtitle = notificationAllowCount?.let { stringResource(R.string.surface_notification_allow_entry_sub, it) },
                     onClick = onOpenNotificationApps,
@@ -127,6 +133,14 @@ internal fun SurfaceModeSettingsPage(
                     title = stringResource(R.string.about_overrides_title),
                     subtitle = stringResource(R.string.about_overrides_entry_sub),
                     onClick = onOpenAboutOverrides,
+                )
+                // 临时入口：P3 接控制中心电量长按验证前，从管理会话里打开隐藏完整抽屉。
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_hidden_drawer_title),
+                    subtitle = stringResource(R.string.surface_hidden_drawer_entry_sub),
+                    onClick = {
+                        context.startActivity(com.flue.launcher.surface.drawer.HiddenDrawerActivity.intent(context))
+                    },
                     last = true,
                 )
             }

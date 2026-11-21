@@ -10,6 +10,11 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.flue.launcher.applist.background.AppListBackgroundJson
 import com.flue.launcher.data.repository.WidgetRepository
+import com.flue.launcher.surface.DISGUISE_MEDIA_DIR
+import com.flue.launcher.surface.apps.PublicAppOverrides
+import com.flue.launcher.surface.config.DisguiseBackup
+import com.flue.launcher.surface.config.LauncherSettingsScopes
+import com.flue.launcher.surface.mode.ConfigScope
 import com.flue.launcher.viewmodel.LauncherViewModel
 import com.flue.launcher.viewmodel.dataStore
 import com.flue.launcher.watchface.WatchFacePhotoCache
@@ -204,7 +209,14 @@ object FlueBackupManager {
         sideScreenWidgetsKey,
         lastWatchFaceErrorKey,
         fontPathKey
-    ) + photoPreferenceNames + videoPreferenceNames
+    ) + photoPreferenceNames + videoPreferenceNames +
+        // 伪装模式的媒体路径是本机绝对路径，随 disguiseMedia 一起导出、恢复时重写。
+        DisguiseBackup.localOnlyPhysicalNames(listOf(photoPathKey, videoPathKey, fontPathKey, lastWatchFaceErrorKey))
+
+    private fun disguiseKey(key: Preferences.Key<String>): Preferences.Key<String> =
+        stringPreferencesKey(LauncherSettingsScopes.physicalName(key.name, ConfigScope.DISGUISE))
+
+    private fun disguiseMediaRoot(context: Context): File = File(context.filesDir, DISGUISE_MEDIA_DIR)
 
     fun suggestedFileName(context: Context): String {
         val version = appVersion(context).sanitizeFilePart()
@@ -265,6 +277,14 @@ object FlueBackupManager {
         if (appListBackgroundEntry != null) {
             manifest.put("appListBackgroundEntry", appListBackgroundEntry)
         }
+        val disguiseFiles = if (options.settings) collectDisguiseMedia(context, prefs) else emptyList()
+        if (disguiseFiles.isNotEmpty()) {
+            manifest.put(
+                DisguiseBackup.MANIFEST_KEY,
+                JSONObject().apply { disguiseFiles.forEach { (role, entry, _) -> if (role != null) put(role, entry) } }
+                    .put("publicIcons", JSONArray(disguiseFiles.filter { it.role == null }.map { it.entry })),
+            )
+        }
 
         if (options.photoWatchFace) {
             manifest.put(
@@ -318,6 +338,7 @@ object FlueBackupManager {
                 if (appListBackgroundEntry != null) {
                     zip.writeFileEntry(appListBackgroundEntry, appListBackgroundMedia)
                 }
+                disguiseFiles.forEach { zip.writeFileEntry(it.entry, it.file) }
                 // 把每个已安装表盘目录打成内嵌 .watch（ZIP），写进备份包。
                 if (options.watchFiles) {
                     watchFaceDirs.forEach { faceDir ->
@@ -372,6 +393,7 @@ object FlueBackupManager {
                         excludeNames = settingsExcludedNames
                     )
                     restoreAppListBackgroundImage(context, tempRoot, prefs, manifest)
+                    restoreDisguiseMedia(context, tempRoot, prefs, manifest.optJSONObject(DisguiseBackup.MANIFEST_KEY))
                 }
                 if (selected.appOrder) {
                     val appOrder = manifest.optJSONArray("appOrder")
@@ -473,6 +495,70 @@ object FlueBackupManager {
             runCatching { AppListBackgroundJson.encode(config) }.getOrNull() ?: return
     }
 
+    private data class DisguiseMediaFile(val role: String?, val entry: String, val file: File)
+
+    /** 伪装模式的媒体文件：role 为 null 的是公开图标。只收本机伪装媒体目录里的文件。 */
+    private fun collectDisguiseMedia(context: Context, prefs: Preferences): List<DisguiseMediaFile> {
+        val root = disguiseMediaRoot(context).canonicalFile
+        fun local(path: String?): File? = path?.let(::File)?.takeIf { it.isFile }
+            ?.takeIf { it.canonicalFile.path.startsWith(root.path + File.separator) }
+        fun media(role: String, entry: String, file: File?, default: String) =
+            file?.let { DisguiseMediaFile(role, "$entry.${DisguiseBackup.extensionOf(it.name, default)}", it) }
+        val background = AppListBackgroundJson.decodeOrDefault(prefs[disguiseKey(LauncherViewModel.KEY_APP_LIST_BACKGROUND)])
+        val icons = PublicAppOverrides.parse(prefs[stringPreferencesKey(
+            LauncherSettingsScopes.physicalName(PublicAppOverrides.KEY, ConfigScope.DISGUISE),
+        )]).values.mapNotNullTo(LinkedHashSet()) { it.iconFile }
+        val iconDir = File(root, PublicAppOverrides.ICON_DIR)
+        return listOfNotNull(
+            media("photoEntry", DisguiseBackup.PHOTO_ENTRY, local(prefs[disguiseKey(LauncherViewModel.KEY_BUILTIN_PHOTO_PATH)]), "png"),
+            media("videoEntry", DisguiseBackup.VIDEO_ENTRY, local(prefs[disguiseKey(LauncherViewModel.KEY_BUILTIN_VIDEO_PATH)]), "mp4"),
+            media("fontEntry", DisguiseBackup.FONT_ENTRY, local(prefs[disguiseKey(LauncherViewModel.KEY_WATCHFACE_FONT_PATH)]), "ttf"),
+            media("appListBackgroundEntry", DisguiseBackup.APP_LIST_BACKGROUND_ENTRY, local(background.imagePath), "png"),
+        ) + icons.mapNotNull { name ->
+            val entry = DisguiseBackup.publicIconEntry(name) ?: return@mapNotNull null
+            File(iconDir, name).takeIf { it.isFile }?.let { DisguiseMediaFile(null, entry, it) }
+        }
+    }
+
+    /**
+     * 恢复伪装模式的媒体文件并把路径改成本机的伪装媒体目录。和 [restoreAppListBackgroundImage] 一样
+     * 要在设置区段写入之后跑。包里没有的文件什么都不做，本机原有的伪装媒体保持不变。
+     */
+    private fun restoreDisguiseMedia(context: Context, tempRoot: File, prefs: MutablePreferences, manifest: JSONObject?) {
+        if (manifest == null) return
+        val root = disguiseMediaRoot(context)
+        fun source(role: String): File? = manifest.optString(role)
+            .takeIf { it.isNotBlank() && it != "null" }
+            ?.let { File(tempRoot, it) }
+            ?.takeIf { it.isFile }
+        fun restore(role: String, folder: String, key: Preferences.Key<String>) {
+            val file = source(role) ?: return
+            runCatching { copyInternalWatchFaceMedia(context, file, folder, root) }
+                .onSuccess { prefs[disguiseKey(key)] = it }
+        }
+        restore("photoEntry", "photo", LauncherViewModel.KEY_BUILTIN_PHOTO_PATH)
+        restore("videoEntry", "video", LauncherViewModel.KEY_BUILTIN_VIDEO_PATH)
+        restore("fontEntry", "font", LauncherViewModel.KEY_WATCHFACE_FONT_PATH)
+        if (source("photoEntry") != null || source("videoEntry") != null) WatchFacePhotoCache.clear()
+        source("appListBackgroundEntry")?.let { file ->
+            val path = runCatching {
+                copyInternalWatchFaceMedia(context, file, APP_LIST_BACKGROUND_MEDIA_FOLDER, root)
+            }.getOrNull() ?: return@let
+            val key = disguiseKey(LauncherViewModel.KEY_APP_LIST_BACKGROUND)
+            val config = AppListBackgroundJson.decodeOrDefault(prefs[key]).copy(imagePath = path)
+            runCatching { AppListBackgroundJson.encode(config) }.getOrNull()?.let { prefs[key] = it }
+        }
+        val icons = manifest.optJSONArray("publicIcons").toStringList()
+        if (icons.isNotEmpty()) {
+            val iconDir = File(root, PublicAppOverrides.ICON_DIR).apply { mkdirs() }
+            icons.forEach { entry ->
+                val name = DisguiseBackup.publicIconName(entry) ?: return@forEach
+                val file = File(tempRoot, entry).takeIf { it.isFile } ?: return@forEach
+                runCatching { file.copyTo(File(iconDir, name), overwrite = true) }
+            }
+        }
+    }
+
     private fun restoreMediaWatchFace(
         context: Context,
         tempRoot: File,
@@ -504,8 +590,13 @@ object FlueBackupManager {
     }
 
 
-    private fun copyInternalWatchFaceMedia(context: Context, source: File, folder: String): String {
-        val targetRoot = File(context.filesDir, "internal_watchfaces/$folder").apply { mkdirs() }
+    private fun copyInternalWatchFaceMedia(
+        context: Context,
+        source: File,
+        folder: String,
+        mediaRoot: File = context.filesDir,
+    ): String {
+        val targetRoot = File(mediaRoot, "internal_watchfaces/$folder").apply { mkdirs() }
         targetRoot.listFiles()?.forEach { existing -> if (existing.isFile) existing.delete() }
         val extension = source.extension.ifBlank {
             when (folder) {
@@ -603,6 +694,8 @@ object FlueBackupManager {
         while (keys.hasNext()) {
             val name = keys.next()
             if (name in excludeNames) continue
+            // 伪装模式的同名键按原名清洗。
+            val logical = DisguiseBackup.logicalName(name)
             val entry = json.optJSONObject(name) ?: continue
             val type = entry.optString("type")
             val value = entry.opt("value") ?: continue
@@ -611,7 +704,7 @@ object FlueBackupManager {
                     "boolean" -> this[booleanPreferencesKey(name)] = entry.optBoolean("value")
                     "int" -> this[intPreferencesKey(name)] = entry.optInt("value")
                     "string" -> {
-                        val sanitized = when (name) {
+                        val sanitized = when (logical) {
                             appOrderKey -> value.toString().split(',').filter(availableAppKeys::contains).joinToString(",")
                             hiddenAppsKey -> value.toString().split(',').filter(availableAppKeys::contains).joinToString(",")
                             sideScreenWidgetsKey -> value.toString().split('|', ',').filter { it.widgetKeyPart() in validWidgetKeys }.joinToString("|")
@@ -622,7 +715,7 @@ object FlueBackupManager {
                             )
                             else -> value.toString()
                         }
-                        if (sanitized.isBlank() && name in setOf(appOrderKey, hiddenAppsKey, sideScreenWidgetsKey, sideScreenShortcutsKey)) {
+                        if (sanitized.isBlank() && logical in setOf(appOrderKey, hiddenAppsKey, sideScreenWidgetsKey, sideScreenShortcutsKey)) {
                             remove(stringPreferencesKey(name))
                         } else {
                             this[stringPreferencesKey(name)] = sanitized

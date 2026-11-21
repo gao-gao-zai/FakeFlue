@@ -133,4 +133,21 @@
     <string name="surface_notification_allow_entry_sub">ほかに %1$d 個のアプリの通知を表示</string>
     <string name="surface_screen_off_keep_app_title">画面オフ後もアプリを継続</string>
     <string name="surface_screen_off_keep_app_sub">オフの場合、他のアプリで画面をオフにすると次の点灯時に文字盤に戻ります（通話中を除く）</string>
+    <string name="surface_shortcut_blocked">偽装ホームにはショートカットを追加できません</string>
+    <string name="surface_public_overrides_title">公開名とアイコン</string>
+    <string name="surface_public_overrides_subtitle">偽装ホームの表示だけを変更し、完全ホームはそのままです</string>
+    <string name="surface_public_overrides_entry_sub">公開アプリの名前やアイコンを個別に変更</string>
+    <string name="surface_public_overrides_unchanged">未変更</string>
+    <string name="surface_public_overrides_original">元の名前：%1$s</string>
+    <string name="surface_public_overrides_edit_title">名前とアイコンを変更</string>
+    <string name="surface_public_overrides_name">公開名（空欄で元の名前）</string>
+    <string name="surface_public_overrides_pick_icon">画像を選んでアイコンにする</string>
+    <string name="surface_public_overrides_reset_icon">元のアイコンに戻す</string>
+    <string name="surface_public_overrides_reset_all">すべて元に戻す</string>
+    <string name="surface_public_overrides_icon_failed">この画像を読み込めません</string>
+    <string name="surface_hidden_drawer_title">すべてのアプリ</string>
+    <string name="surface_hidden_drawer_subtitle">インストール済みの全アプリ。長押しでピン留め</string>
+    <string name="surface_hidden_drawer_entry_sub">一時的な入口。後でコントロールセンターの認証に移動します</string>
+    <string name="surface_hidden_drawer_launch_failed">このアプリを開けません</string>
+    <string name="surface_hidden_drawer_pinned_mark">ピン留め</string>
 </resources>

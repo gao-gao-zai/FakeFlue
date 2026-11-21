@@ -67,6 +67,11 @@ class FlueRepositories(context: Context) {
             val publicApps = com.flue.launcher.surface.SurfaceRuntime.get(appContext).publicApps
             repository.setPublicWhitelist(publicApps.value)
             applicationScope.launch { publicApps.collect(repository::setPublicWhitelist) }
+            // R10：伪装模式的公开名称／图标覆盖；图标解码在这个 IO 作用域里做。
+            val runtime = com.flue.launcher.surface.SurfaceRuntime.get(appContext)
+            applicationScope.launch {
+                runtime.publicOverrides.collect { repository.setPublicOverrides(it, runtime.publicIconDir()) }
+            }
         }
     }
     val widgetRepository: WidgetRepository by lazy { WidgetRepository(appContext) }

@@ -133,4 +133,21 @@
     <string name="surface_notification_allow_entry_sub">另外显示 %1$d 个应用的通知</string>
     <string name="surface_screen_off_keep_app_title">熄屏后继续原应用</string>
     <string name="surface_screen_off_keep_app_sub">关闭时，在其他应用里熄屏后，下次亮屏回到表盘（通话中除外）</string>
+    <string name="surface_shortcut_blocked">伪装桌面不能添加快捷方式</string>
+    <string name="surface_public_overrides_title">公开名称与图标</string>
+    <string name="surface_public_overrides_subtitle">只改伪装桌面里的显示，完整桌面不变</string>
+    <string name="surface_public_overrides_entry_sub">给公开应用单独改名或换图标</string>
+    <string name="surface_public_overrides_unchanged">未修改</string>
+    <string name="surface_public_overrides_original">原名：%1$s</string>
+    <string name="surface_public_overrides_edit_title">修改名称与图标</string>
+    <string name="surface_public_overrides_name">公开名称（留空用原名）</string>
+    <string name="surface_public_overrides_pick_icon">选择图片作为图标</string>
+    <string name="surface_public_overrides_reset_icon">恢复原图标</string>
+    <string name="surface_public_overrides_reset_all">全部恢复原样</string>
+    <string name="surface_public_overrides_icon_failed">无法读取这张图片</string>
+    <string name="surface_hidden_drawer_title">完整应用</string>
+    <string name="surface_hidden_drawer_subtitle">全部已安装应用；长按置顶</string>
+    <string name="surface_hidden_drawer_entry_sub">临时入口，之后改由控制中心验证进入</string>
+    <string name="surface_hidden_drawer_launch_failed">无法打开这个应用</string>
+    <string name="surface_hidden_drawer_pinned_mark">置顶</string>
 </resources>

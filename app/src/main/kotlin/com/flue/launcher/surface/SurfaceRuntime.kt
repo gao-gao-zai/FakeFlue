@@ -36,6 +36,9 @@ import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import com.flue.launcher.surface.apps.NotificationVisibility
 import com.flue.launcher.surface.mode.ThirdPartyScreenOff
+import com.flue.launcher.surface.apps.HiddenDrawerCatalog
+import com.flue.launcher.surface.apps.PublicAppOverride
+import com.flue.launcher.surface.apps.PublicAppOverrides
 
 /**
  * FFlue 模式内核的进程级单例：模式控制器、按模式投影的设置存储与页面守卫。
@@ -114,6 +117,41 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     suspend fun disguiseNotificationAllowedApps(): Set<String> = readDisguiseSet(NotificationVisibility.KEY)
 
+    /** 伪装模式的公开名称／图标覆盖（R10）；完整／外部模式为 null。 */
+    val publicOverrides: StateFlow<Map<String, PublicAppOverride>?> =
+        combine(app.dataStore.data, controller.configScope) { prefs, configScope ->
+            if (configScope == ConfigScope.DISGUISE) {
+                PublicAppOverrides.parse(prefs[stringPreferencesKey(disguiseName(PublicAppOverrides.KEY))])
+            } else {
+                null
+            }
+        }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** 公开图标文件所在目录；不随当前模式变化，完整模式下的管理页也写这里。 */
+    fun publicIconDir(): java.io.File =
+        java.io.File(java.io.File(app.filesDir, DISGUISE_MEDIA_DIR), PublicAppOverrides.ICON_DIR)
+
+    suspend fun disguisePublicOverrides(): Map<String, PublicAppOverride> =
+        PublicAppOverrides.parse(app.dataStore.data.first()[stringPreferencesKey(disguiseName(PublicAppOverrides.KEY))])
+
+    /** 改一项覆盖并清理不再引用的图标文件。 */
+    suspend fun updatePublicOverride(componentKey: String, transform: (PublicAppOverride) -> PublicAppOverride) {
+        var result: Map<String, PublicAppOverride> = emptyMap()
+        app.dataStore.edit { prefs ->
+            val key = stringPreferencesKey(disguiseName(PublicAppOverrides.KEY))
+            result = PublicAppOverrides.update(PublicAppOverrides.parse(prefs[key]), componentKey, transform)
+            prefs[key] = PublicAppOverrides.serialize(result)
+        }
+        val dir = publicIconDir()
+        val files = dir.list()?.toList().orEmpty()
+        PublicAppOverrides.orphanIcons(result, files).forEach { java.io.File(dir, it).delete() }
+    }
+
+    /** 隐藏完整抽屉里置顶的应用（componentKey）。 */
+    suspend fun hiddenDrawerPinned(): Set<String> = readDisguiseSet(HiddenDrawerCatalog.PINNED_KEY)
+
+    suspend fun saveHiddenDrawerPinned(keys: Set<String>) = saveDisguiseSet(HiddenDrawerCatalog.PINNED_KEY, keys)
+
     /** R09：伪装模式下在第三方应用里熄屏后，下次亮屏是否继续原应用（默认回表盘）。 */
     val screenOffKeepApp: StateFlow<Boolean> = app.dataStore.data
         .map { prefs -> prefs[booleanPreferencesKey(disguiseName(ThirdPartyScreenOff.KEY))] == true }
@@ -140,8 +178,32 @@ class SurfaceRuntime private constructor(private val app: Application) {
         _managementSession.value = false
     }
 
+    @Volatile
+    private var hiddenDrawerGrant = false
+
+    /**
+     * R14：静默验证成功后授予“本次”完整抽屉，只能用一次，不授予管理权限。
+     * P3 由控制中心电量长按验证调用；目前只有管理会话里的入口。
+     */
+    fun grantHiddenDrawer() {
+        hiddenDrawerGrant = true
+    }
+
+    /** 打开隐藏抽屉时调用：完整／外部模式总是允许；伪装模式需要管理会话或一次性授权。 */
+    fun consumeHiddenDrawerAccess(): Boolean {
+        if (controller.configScope.value != ConfigScope.DISGUISE) return true
+        val granted = hiddenDrawerGrant
+        hiddenDrawerGrant = false
+        return granted || _managementSession.value
+    }
+
     init {
-        scope.launch { controller.mode.drop(1).collect { endManagementSession() } }
+        scope.launch {
+            controller.mode.drop(1).collect {
+                endManagementSession()
+                hiddenDrawerGrant = false
+            }
+        }
     }
 
     /**

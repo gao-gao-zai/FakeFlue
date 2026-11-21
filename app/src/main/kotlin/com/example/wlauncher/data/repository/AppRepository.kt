@@ -2,6 +2,7 @@
 
 import android.content.ActivityNotFoundException
 import com.flue.launcher.surface.apps.PublicAppRules
+import com.flue.launcher.surface.apps.PublicAppOverride
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -123,6 +124,9 @@ class AppRepository(private val context: Context) {
     )
     private var hiddenComponents: Set<String> = emptySet()
     private var publicWhitelist: Set<String>? = null
+    @Volatile private var publicOverrides: Map<String, PublicAppOverride> = emptyMap()
+    @Volatile private var publicOverrideIconDir: File? = null
+    private val publicOverrideIcons = ConcurrentHashMap<String, CachedIconSet>()
     private var currentIconSize = 128
     private var iconPackPackage: String? = null
     private var useLegacyCircularIcons = true
@@ -235,6 +239,60 @@ class AppRepository(private val context: Context) {
         if (publicWhitelist == whitelist) return
         publicWhitelist = whitelist
         applyFilters()
+    }
+
+    /**
+     * 伪装模式的公开名称／图标覆盖（R10）；null 或空表示不覆盖（完整模式）。
+     * 只改显示用的标签和位图，componentKey 不变，排序、隐藏、启动都照旧按原组件。
+     * 图标在调用线程上解码，调用方应在 IO 线程调用。
+     */
+    fun setPublicOverrides(overrides: Map<String, PublicAppOverride>?, iconDir: File?) {
+        val next = overrides.orEmpty()
+        if (next == publicOverrides && iconDir == publicOverrideIconDir) return
+        publicOverrideIconDir = iconDir
+        val liveFiles = next.values.mapNotNullTo(HashSet()) { it.iconFile }
+        publicOverrideIcons.keys.removeAll { key -> key.substringBefore('@') !in liveFiles }
+        liveFiles.forEach(::overrideIconSet)
+        publicOverrides = next
+        applyFilters()
+    }
+
+    private fun overrideIconSet(file: String): CachedIconSet? {
+        val size = currentIconSize
+        val key = "$file@$size"
+        publicOverrideIcons[key]?.let { return it }
+        val dir = publicOverrideIconDir ?: return null
+        val source = runCatching { File(dir, file).takeIf(File::isFile)?.let { decodeSquareBitmap(it, size) } }
+            .getOrNull() ?: return null
+        val sharp = createCircularBitmap(source, edgeInsetPx = size * ICON_MASK_EDGE_INSET_FRACTION)
+        return CachedIconSet(sharp.asImageBitmap(), createSoftenedBitmap(sharp).asImageBitmap())
+            .also { publicOverrideIcons[key] = it }
+    }
+
+    /** 居中裁成正方形并缩放到 [size]。 */
+    private fun decodeSquareBitmap(file: File, size: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= size) sample *= 2
+        val decoded = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+            ?: return null
+        val side = minOf(decoded.width, decoded.height)
+        val square = Bitmap.createBitmap(decoded, (decoded.width - side) / 2, (decoded.height - side) / 2, side, side)
+        return Bitmap.createScaledBitmap(square, size, size, true)
+    }
+
+    private fun withPublicOverride(app: AppInfo): AppInfo {
+        val override = publicOverrides[app.componentKey] ?: return app
+        val icon = override.iconFile?.let(::overrideIconSet)
+        return app.copy(
+            label = override.label ?: app.label,
+            cachedIcon = icon?.sharp ?: app.cachedIcon,
+            cachedBlurredIcon = icon?.softened ?: app.cachedBlurredIcon,
+            cachedPlainIcon = icon?.sharp ?: app.cachedPlainIcon,
+            cachedPlainBlurredIcon = icon?.softened ?: app.cachedPlainBlurredIcon,
+        )
     }
 
     fun setIconPackPackage(packageName: String?) {
@@ -613,6 +671,7 @@ class AppRepository(private val context: Context) {
         return folder.itemKeys
             .mapNotNull(catalog.items::get)
             .filterNot(::isHiddenApp)
+            .map(::withPublicOverride)
     }
 
     fun folderItemKeys(folderKey: String): List<String> {
@@ -1556,7 +1615,11 @@ class AppRepository(private val context: Context) {
         childItems: List<AppInfo>,
         iconSize: Int
     ): AppInfo {
-        val iconCacheKey = "folder|${folder.id}|${folder.itemKeys.joinToString("|")}|$iconSize"
+        // 伪装模式里子项换了公开图标时，预览要用新图，缓存键带上覆盖图标文件名。
+        val overrideTag = publicOverrides.takeIf { it.isNotEmpty() }
+            ?.let { overrides -> childItems.mapNotNull { overrides[it.componentKey]?.iconFile }.joinToString(",") }
+            .orEmpty()
+        val iconCacheKey = "folder|${folder.id}|${folder.itemKeys.joinToString("|")}|$iconSize|$overrideTag"
         val cachedIcons = getOrCreateIconSet(iconCacheKey) {
             val baseBitmap = createFolderBitmap(childItems, iconSize)
             CachedIconSet(
@@ -1682,22 +1745,28 @@ class AppRepository(private val context: Context) {
     private fun applyFilters() {
         _apps.value = _allApps.value.mapNotNull { visibleAppListItem(it, ::isHiddenApp) }
         _modeAllApps.value = _allApps.value.mapNotNull { visibleAppListItem(it, ::isNotPublic) }
-        _modeAllSelectableApps.value = _allSelectableApps.value.filterNot(::isNotPublic)
+        _modeAllSelectableApps.value = _allSelectableApps.value.filterNot(::isNotPublic).map(::withPublicOverride)
     }
 
     private fun visibleAppListItem(app: AppInfo, excluded: (AppInfo) -> Boolean): AppInfo? {
-        if (!app.isFolder) return app.takeUnless(excluded)
+        if (!app.isFolder) return app.takeUnless(excluded)?.let(::withPublicOverride)
         val visibleChildren = app.folderItemKeys.mapNotNull(catalogData.items::get).filterNot(excluded)
         if (visibleChildren.isEmpty()) return null
-        if (visibleChildren.map { it.componentKey } == app.folderItemKeys) return app
-        return createFolderEntry(
-            folder = StoredAppListFolder(
-                id = app.activityName,
-                name = app.label,
-                itemKeys = visibleChildren.map { it.componentKey }
-            ),
-            childItems = visibleChildren,
-            iconSize = currentIconSize
+        val overrides = publicOverrides
+        val childOverridden = visibleChildren.any { it.componentKey in overrides }
+        if (!childOverridden && visibleChildren.map { it.componentKey } == app.folderItemKeys) {
+            return withPublicOverride(app)
+        }
+        return withPublicOverride(
+            createFolderEntry(
+                folder = StoredAppListFolder(
+                    id = app.activityName,
+                    name = app.label,
+                    itemKeys = visibleChildren.map { it.componentKey }
+                ),
+                childItems = visibleChildren.map(::withPublicOverride),
+                iconSize = currentIconSize
+            )
         )
     }
 
