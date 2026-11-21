@@ -201,6 +201,14 @@
             android:theme="@style/Theme.WatchLauncher"
             android:screenOrientation="portrait" />
 
+        <!-- R26 伪装模式的公开“设置”。只由本应用的内置设置入口启动。 -->
+        <activity
+            android:name="com.flue.launcher.surface.publicsettings.PublicSettingsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
         <!-- R18 首次使用路径：欢迎 → 选择模式 → 默认桌面引导。只由本应用启动。 -->
         <activity
             android:name="com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity"

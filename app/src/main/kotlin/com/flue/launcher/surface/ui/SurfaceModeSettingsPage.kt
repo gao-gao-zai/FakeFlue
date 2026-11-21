@@ -31,6 +31,7 @@ internal fun SurfaceModeSettingsPage(
     onBack: () -> Unit,
     onOpenScreenFit: () -> Unit,
     onOpenPublicApps: () -> Unit,
+    onOpenAboutOverrides: () -> Unit,
 ) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
@@ -100,6 +101,11 @@ internal fun SurfaceModeSettingsPage(
                     title = stringResource(R.string.surface_public_apps_title),
                     subtitle = publicCount?.let { stringResource(R.string.surface_public_apps_entry_sub, it) },
                     onClick = onOpenPublicApps,
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.about_overrides_title),
+                    subtitle = stringResource(R.string.about_overrides_entry_sub),
+                    onClick = onOpenAboutOverrides,
                     last = true,
                 )
             }

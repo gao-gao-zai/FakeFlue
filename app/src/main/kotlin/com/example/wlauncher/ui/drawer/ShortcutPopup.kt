@@ -76,6 +76,18 @@ fun AppShortcutOverlay(
 ) {
     val context = LocalContext.current
     val appDetailsPackage = if (app.isBuiltInSettingsEntry) context.packageName else app.packageName
+    // R26／R10：伪装模式不公开应用信息、卸载、隐藏应用和文件夹／快捷方式结构编辑，
+    // 只保留侧屏快捷项的移除（侧屏配置随模式保存）。
+    val restricted = remember(context) {
+        com.flue.launcher.surface.SurfaceRuntime.get(context).controller.configScope.value ==
+            com.flue.launcher.surface.mode.ConfigScope.DISGUISE
+    }
+    val hasRestrictedItems = !app.isFolder && !app.isAppListShortcut && onRemoveShortcut != null
+    if (restricted && !hasRestrictedItems) {
+        // 没有可公开的菜单项：不弹空菜单。
+        LaunchedEffect(app.componentKey) { onDismiss() }
+        return
+    }
 
     var showing by remember { mutableStateOf(false) }
     var dismissing by remember { mutableStateOf(false) }
@@ -204,7 +216,17 @@ fun AppShortcutOverlay(
                         .clip(LauncherTheme.style.cardShape)
                         .background(Color(0xFF2C2C2E))
                 ) {
-                    if (app.isFolder) {
+                    if (restricted) {
+                        onRemoveShortcut?.let { removeShortcut ->
+                            ShortcutMenuItem(
+                                stringResource(R.string.shortcut_menu_remove_from_quick_launch),
+                                Color(0xFFFF9F0A),
+                            ) {
+                                removeShortcut()
+                                onDismiss()
+                            }
+                        }
+                    } else if (app.isFolder) {
                         ShortcutMenuItem(stringResource(R.string.shortcut_menu_rename)) {
                             renameText = app.label
                             renameDialogVisible = true

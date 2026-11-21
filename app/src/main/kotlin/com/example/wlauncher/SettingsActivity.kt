@@ -324,6 +324,7 @@ const val SETTINGS_DESTINATION_WATCH_FACES = "watch_faces"
 const val SETTINGS_DESTINATION_TOOLS = "tools"
 const val SETTINGS_DESTINATION_AGENT = "agent"
 const val SETTINGS_DESTINATION_SCREEN_FIT = "screen_fit"
+const val SETTINGS_DESTINATION_SURFACE = "surface"
 private val LocalSettingsLeftSafeInsetPercent = compositionLocalOf { 0 }
 private val LocalSettingsRotaryHapticsEnabled = compositionLocalOf { true }
 
@@ -345,6 +346,8 @@ enum class SettingsDestination {
     AGENT,
     SURFACE,
     PUBLIC_APPS,
+    ABOUT_OVERRIDES,
+    ABOUT_FFLUE,
     WATCH_FACE_MORE,
     TAP_ACTION_CATEGORIES,
     TAP_ACTION_CATEGORY,
@@ -508,6 +511,7 @@ class SettingsActivity : FlueComponentActivity() {
             SETTINGS_DESTINATION_TOOLS -> SettingsDestination.TOOLS
             SETTINGS_DESTINATION_AGENT -> SettingsDestination.AGENT
             SETTINGS_DESTINATION_SCREEN_FIT -> SettingsDestination.SCREEN_FIT
+            SETTINGS_DESTINATION_SURFACE -> SettingsDestination.SURFACE
             else -> SettingsDestination.ROOT
         }
         return SettingsLaunchConfig(
@@ -1042,7 +1046,7 @@ private fun SettingsRootScreen(
 
     var destination by remember { mutableStateOf(launchConfig.initialDestination) }
     LaunchedEffect(destination) {
-        if (destination != SettingsDestination.ABOUT) debugTapState = DebugTapState()
+        if (destination != SettingsDestination.ABOUT_FFLUE) debugTapState = DebugTapState()
     }
     // 背景预览卡的底图。**只在背景页才真的解码**：不在那一页时喂一份默认配置（纯色档 →
     // 图源为 null），于是进任何别的设置页都不会白解一张全屏位图出来。
@@ -1909,7 +1913,10 @@ private fun SettingsRootScreen(
                 onBack = { handleBack() },
                 onOpenScreenFit = { navigateTo(SettingsDestination.SCREEN_FIT) },
                 onOpenPublicApps = { navigateTo(SettingsDestination.PUBLIC_APPS) },
+                onOpenAboutOverrides = { navigateTo(SettingsDestination.ABOUT_OVERRIDES) },
             )
+            SettingsDestination.ABOUT_OVERRIDES ->
+                com.flue.launcher.surface.publicsettings.AboutOverridesPage(onBack = { handleBack() })
             SettingsDestination.PUBLIC_APPS -> {
                 val catalogApps by vm.catalogApps.collectAsStateWithLifecycle()
                 com.flue.launcher.surface.ui.PublicAppPickerPage(apps = catalogApps, onBack = { handleBack() })
@@ -5097,13 +5104,29 @@ private fun SettingsRootScreen(
                 }
             }
 
-            SettingsDestination.ABOUT -> SettingsPageScaffold(
-                title = stringResource(R.string.settings_about_title),
+            // R26：关于先显示设备信息，原作者、版本、社区和致谢移到“关于 FFlue”。
+            SettingsDestination.ABOUT -> com.flue.launcher.surface.publicsettings.DeviceAboutPage(
+                onBack = { handleBack() },
+                extra = {
+                    item(key = "about_fflue_entry") {
+                        com.flue.launcher.ui.settings.agent.AgentSettingsGroup {
+                            com.flue.launcher.ui.settings.agent.AgentSettingsEntry(
+                                title = stringResource(R.string.about_fflue_title),
+                                subtitle = stringResource(R.string.about_fflue_subtitle),
+                                onClick = { navigateTo(SettingsDestination.ABOUT_FFLUE) },
+                                last = true,
+                            )
+                        }
+                    }
+                },
+            )
+            SettingsDestination.ABOUT_FFLUE -> SettingsPageScaffold(
+                title = stringResource(R.string.about_fflue_title),
                 onBack = { handleBack() },
                 headerTime = headerTime,
-                initialFirstVisibleItemIndex = scrollFor(SettingsDestination.ABOUT).index,
-                initialFirstVisibleItemScrollOffset = scrollFor(SettingsDestination.ABOUT).offset,
-                onScrollChanged = { index, offset -> updateScroll(SettingsDestination.ABOUT, index, offset) }
+                initialFirstVisibleItemIndex = scrollFor(SettingsDestination.ABOUT_FFLUE).index,
+                initialFirstVisibleItemScrollOffset = scrollFor(SettingsDestination.ABOUT_FFLUE).offset,
+                onScrollChanged = { index, offset -> updateScroll(SettingsDestination.ABOUT_FFLUE, index, offset) }
             ) { listState, screenCenterY, screenHeightPx, _ ->
                 item("about_card") {
                     AboutCard(
@@ -8085,7 +8108,9 @@ internal fun buildSettingsSearchIndex(context: Context): List<SettingsSearchEntr
     SettingsSearchEntry("BACKUP_EXPORT", null, s(R.string.settings_backup_export_page), s(R.string.settings_backup_export_page_sub), listOf("dcpz", "export config", "daochu", "beifen")),
     SettingsSearchEntry("BACKUP_IMPORT", null, s(R.string.settings_backup_import_page), s(R.string.settings_backup_import_page_sub), listOf("drpz", "import config", "daoru", "huifu", "restore")),
     SettingsSearchEntry("LANGUAGE", null, s(R.string.settings_language), s(R.string.search_d_language), listOf("yy", "language", "yuyan", "zhongwen", "english")),
-    SettingsSearchEntry("ABOUT", null, s(R.string.settings_about), s(R.string.search_d_about), listOf("gy", "about", "banben")),
+    SettingsSearchEntry("ABOUT", null, s(R.string.settings_about), s(R.string.search_d_device_about), listOf("gy", "about", "shebei", "cunchu", "neicun", "dianchi")),
+    SettingsSearchEntry("ABOUT_FFLUE", null, s(R.string.about_fflue_title), s(R.string.search_d_about), listOf("gyfflue", "fflue", "banben", "zuozhe", "zhixie")),
+    SettingsSearchEntry("ABOUT_OVERRIDES", null, s(R.string.about_overrides_title), s(R.string.about_overrides_subtitle), listOf("gyxs", "fugai", "override")),
     SettingsSearchEntry("DONATE", null, s(R.string.search_t_donate), s(R.string.search_d_donate), listOf("jz", "donate", "juanzeng")),
     )
 }
