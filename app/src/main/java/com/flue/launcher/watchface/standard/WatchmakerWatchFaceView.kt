@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.fillMaxSize
 import com.flue.launcher.R
+import com.flue.launcher.data.readBytesBounded
 import com.flue.launcher.watchface.WatchFaceDescriptor
 import com.flue.launcher.ui.anim.createLegacyPrebuiltBlur
 import com.flue.launcher.ui.common.isFlueScreenRound
@@ -5064,11 +5065,18 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
                         ?.let { parsed[relative] = it }
                 }
             }
+        var bitmapFontSourcesUnchanged = true
         val bitmapFontDefinitions: Map<String, WatchBitmapFont> = prepared?.bitmapFonts
             ?: LinkedHashMap<String, WatchBitmapFont>().also { parsed ->
-                bitmapFontSources.forEach { (relative, text) ->
-                    runCatching { parseWatchBitmapFont(text) }.getOrNull()?.let { parsed[relative] = it }
-                }
+                // 未命中时再逐文件读取并解析，不同时保留全部字体源码。解析所用字节再算一次
+                // 摘要，防止两次读取之间发生修改时把新模型按旧摘要发布进缓存。
+                val parsedValidation = watchPreparedValidationDigest(
+                    definitionRevision,
+                    bitmapFontSources.asSequence().onEach { (relative, text) ->
+                        runCatching { parseWatchBitmapFont(text) }.getOrNull()?.let { parsed[relative] = it }
+                    }.asIterable(),
+                )
+                bitmapFontSourcesUnchanged = MessageDigest.isEqual(preparedValidation, parsedValidation)
             }
         val renderPlanResult = buildWatchLayerRenderPlanResult(definition.layers)
         val bitmapFonts = buildBitmapFontIndex(canonicalRoot, files, bitmapFontDefinitions)
@@ -5152,7 +5160,10 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
             prepared = preparedExpressions?.let { cached -> { source: String -> cached[source] } },
             collect = collectedExpressions,
         )
-        if (preparedCache != null && (prepared == null || collectedExpressions != null)) {
+        if (
+            preparedCache != null && bitmapFontSourcesUnchanged &&
+            (prepared == null || collectedExpressions != null)
+        ) {
             val scopeDigest = watchPreparedScopeDigest(expressionScope)
             val expressionsToStore: Map<String, WatchAttr> = collectedExpressions.orEmpty()
             val scriptToCompile = initialScript
@@ -5213,17 +5224,22 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
         )
     }
 
-    /** R36：`.fnt` 全文读一次，既进命中摘要，也供（未命中时的）解析。键为小写相对路径。 */
-    private fun readBitmapFontSources(root: File, files: List<File>): List<Pair<String, String>> =
+    /** R36：逐文件、实际字节有界读取字体源码；重遍历会重新读取，避免累计保留全文。 */
+    private fun readBitmapFontSources(root: File, files: List<File>): Iterable<Pair<String, String>> =
         files.asSequence()
             .filter { file ->
                 file.extension.equals("fnt", true) && file.length() in 1..MAX_BMFONT_DEFINITION_BYTES
             }
             .mapNotNull { file ->
-                val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return@mapNotNull null
+                val text = runCatching {
+                    file.inputStream().use { input ->
+                        input.readBytesBounded(MAX_BMFONT_DEFINITION_BYTES, "位图字体定义")
+                            .toString(Charsets.UTF_8)
+                    }
+                }.getOrNull() ?: return@mapNotNull null
                 file.relativeTo(root).invariantSeparatorsPath.lowercase(Locale.ROOT) to text
             }
-            .toList()
+            .asIterable()
 
     private fun readWatchXmlBytes(watchXml: File): ByteArray {
         val maximum = SecureWatchXmlParser.DEFAULT_MAX_BYTES

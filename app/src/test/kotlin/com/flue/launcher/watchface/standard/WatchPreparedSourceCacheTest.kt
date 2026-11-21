@@ -3,7 +3,10 @@ package com.flue.launcher.watchface.standard
 import android.graphics.Bitmap
 import android.graphics.Color
 import com.flue.launcher.watchface.standard.prepared.WatchmakerPreparedCache
+import com.flue.launcher.watchface.standard.prepared.WatchPreparedCache
 import java.io.File
+import java.io.RandomAccessFile
+import java.util.concurrent.Executor
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -67,6 +70,134 @@ class WatchPreparedSourceCacheTest {
     }
 
     @Test
+    fun bitmapFontSourcesAreReadLazilyAndAgainForEachIteration() {
+        val root = temporaryFolder.newFolder("font-sources")
+        val first = File(root, "first.fnt").apply { writeText("first") }
+        val second = File(root, "second.fnt").apply { writeText("before") }
+        val sources = bitmapFontSources(root, listOf(first, second))
+
+        // Merely obtaining the iterable must not retain either file's source text.
+        assertTrue(first.delete())
+        second.writeText("after")
+        assertEquals(listOf("second.fnt" to "after"), sources.toList())
+
+        second.writeText("latest")
+        assertEquals(listOf("second.fnt" to "latest"), sources.toList())
+    }
+
+    @Test
+    fun bitmapFontSourcesEnforceTheActualReadLimitWhenLengthIsStale() {
+        val root = temporaryFolder.newFolder("font-read-limit")
+        val oversized = File(root, "oversized.fnt")
+        RandomAccessFile(oversized, "rw").use { it.setLength(1024L * 1024L + 1L) }
+        val reportedSmall = object : File(oversized.path) {
+            override fun length(): Long = 1L
+        }
+        val valid = File(root, "valid.fnt").apply { writeText("valid font source") }
+
+        assertEquals(
+            listOf("valid.fnt"),
+            bitmapFontSources(root, listOf(reportedSmall, valid)).map { it.first },
+        )
+    }
+
+    @Test
+    fun bitmapFontContentChangesWithTheSameMetadataInvalidateCachedDefinitions() {
+        val root = installFace("r36-font-edit", color = "ffffff")
+        val cache = requireNotNull(WatchmakerPreparedCache.forInstalledRoot(application, root.canonicalFile))
+        val missesBefore = cache.missCount.get()
+        val hitsBefore = cache.hitCount.get()
+        val publishedBefore = cache.publishCount.get()
+        val bitmaps = ArrayList<Bitmap>()
+        try {
+            val miss = render(root).also(bitmaps::add)
+            assertEquals(missesBefore + 1, cache.missCount.get())
+            awaitPublished(cache, publishedBefore + 1)
+            val hit = render(root).also(bitmaps::add)
+            assertEquals(hitsBefore + 1, cache.hitCount.get())
+            assertTrue(miss.sameAs(hit))
+
+            val font = File(root, "fonts_bm/fixture.fnt")
+            val modified = font.lastModified()
+            val original = font.readText()
+            val edited = original.replace("xadvance=26", "xadvance=16")
+            assertEquals(original.length, edited.length)
+            assertFalse(original == edited)
+            font.writeText(edited)
+            assertTrue(font.setLastModified(modified))
+
+            val afterEdit = render(root).also(bitmaps::add)
+            assertEquals(missesBefore + 2, cache.missCount.get())
+            assertFalse("font metrics must update after a same-size, same-time edit", hit.sameAs(afterEdit))
+            awaitPublished(cache, publishedBefore + 2)
+            val editedHit = render(root).also(bitmaps::add)
+            assertEquals(hitsBefore + 2, cache.hitCount.get())
+            assertTrue(afterEdit.sameAs(editedHit))
+        } finally {
+            bitmaps.forEach(Bitmap::recycle)
+        }
+    }
+
+    @Test
+    fun fontSourcesChangedBetweenValidationAndParsingAreNotPublished() {
+        val root = installFace("r36-font-read-race", color = "ffffff")
+        val font = File(root, "fonts_bm/fixture.fnt")
+        val original = font.readText()
+        val edited = original.replace("xadvance=26", "xadvance=16")
+        val modified = font.lastModified()
+        var lengthChecks = 0
+        val observedFont = object : File(font.path) {
+            override fun length(): Long {
+                lengthChecks++
+                // Metadata is inspected once for each manifest, then once for each source pass.
+                // Change the file just as the second pass is about to read its text.
+                if (lengthChecks == 4) {
+                    font.writeText(edited)
+                    check(font.setLastModified(modified))
+                }
+                return super.length()
+            }
+        }
+        val observedFontDirectory = object : File(font.parentFile!!.path) {
+            override fun listFiles(): Array<File>? = super.listFiles()?.map { child ->
+                if (child.name == font.name) observedFont else child
+            }?.toTypedArray()
+        }
+        val observedRoot = object : File(root.path) {
+            override fun getCanonicalFile(): File = this
+            override fun listFiles(): Array<File>? = super.listFiles()?.map { child ->
+                if (child.name == observedFontDirectory.name) observedFontDirectory else child
+            }?.toTypedArray()
+        }
+        val previousCache = requireNotNull(WatchmakerPreparedCache.forInstalledRoot(application, root.canonicalFile))
+        val cache = WatchPreparedCache(previousCache.cacheDirectory, "read-race-test", Executor { it.run() })
+        val shared = WatchmakerPreparedCache::class.java.getDeclaredField("shared").apply { isAccessible = true }
+        val bitmaps = ArrayList<Bitmap>()
+        shared.set(null, cache)
+        try {
+            val afterEdit = render(observedRoot).also(bitmaps::add)
+            assertTrue("the second read must have changed the font", lengthChecks >= 4)
+            assertEquals(edited, font.readText())
+            assertEquals("a changed source must not publish under the first pass's digest", 0, cache.publishCount.get())
+            assertFalse(cache.entryFile(root.canonicalPath).exists())
+
+            val stable = render(root).also(bitmaps::add)
+            assertTrue("the uncached font must still render normally", afterEdit.sameAs(stable))
+            assertEquals(1, cache.publishCount.get())
+
+            font.writeText(original)
+            assertTrue(font.setLastModified(modified))
+            val missesBeforeRestore = cache.missCount.get()
+            val restored = render(root).also(bitmaps::add)
+            assertEquals(missesBeforeRestore + 1, cache.missCount.get())
+            assertFalse("restoring the old font must not load the newer font model", stable.sameAs(restored))
+        } finally {
+            shared.set(null, previousCache)
+            bitmaps.forEach(Bitmap::recycle)
+        }
+    }
+
+    @Test
     fun editorDraftsAndOtherDirectoriesAreNeverCached() {
         val draft = temporaryFolder.newFolder("draft")
         writeFace(draft, color = "ffffff")
@@ -74,6 +205,18 @@ class WatchPreparedSourceCacheTest {
         render(draft).recycle()
         val directory = File(application.cacheDir, "watchmaker-prepared")
         assertTrue(directory.listFiles().orEmpty().none { it.name.endsWith(".prepared") })
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun bitmapFontSources(root: File, files: List<File>): Iterable<Pair<String, String>> {
+        val view = WatchmakerWatchFaceView(application)
+        try {
+            val method = view.javaClass.getDeclaredMethod("readBitmapFontSources", File::class.java, List::class.java)
+                .apply { isAccessible = true }
+            return method.invoke(view, root, files) as Iterable<Pair<String, String>>
+        } finally {
+            view.dispose()
+        }
     }
 
     private fun awaitPublished(

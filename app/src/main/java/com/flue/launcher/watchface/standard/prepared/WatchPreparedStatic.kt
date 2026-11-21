@@ -65,7 +65,7 @@ internal fun watchPreparedScopeDigest(scope: WatchExpressionScope): String {
  */
 internal fun watchPreparedValidationDigest(
     definitionRevision: String,
-    bitmapFontSources: List<Pair<String, String>>,
+    bitmapFontSources: Iterable<Pair<String, String>>,
 ): ByteArray {
     val digest = MessageDigest.getInstance("SHA-256")
     digest.update("r36-validation".toByteArray(Charsets.UTF_8))
