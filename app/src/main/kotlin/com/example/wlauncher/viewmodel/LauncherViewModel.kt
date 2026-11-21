@@ -3377,7 +3377,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     suspend fun importBackup(uri: Uri, options: FlueBackupOptions): Result<Unit> {
         return runCatching {
-            val availableAppKeys = allApps.value.ifEmpty { apps.value }.map { it.componentKey }.toSet()
+            // 备份校验用未经模式筛选的已安装条目：导入直接写物理配置，伪装模式下用公开列表
+            // 校验会把已安装但未公开的应用从完整桌面的排序、隐藏和侧屏快捷项里删掉（R10）。
+            val availableAppKeys = appRepository.allApps.value
+                .ifEmpty { appRepository.allSelectableApps.value }
+                .map { it.componentKey }
+                .toSet()
             withContext(Dispatchers.IO) {
                 FlueBackupManager.importBackup(
                     context = getApplication(),
