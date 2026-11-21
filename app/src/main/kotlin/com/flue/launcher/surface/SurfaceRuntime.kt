@@ -65,6 +65,11 @@ class SurfaceRuntime private constructor(private val app: Application) {
     /** 隐藏密码（R12）；设备级，两种模式共用。 */
     val secretStore: SecretStore by lazy { SecretStore.create(app) }
 
+    /** 桌面进入密码（R33）；与隐藏密码分开加密保存。 */
+    val desktopLockStore: com.flue.launcher.surface.lock.DesktopLockStore by lazy {
+        com.flue.launcher.surface.lock.DesktopLockStore.create(app)
+    }
+
     val controller = SurfaceModeController(
         storage = stateStore,
         // 所有进入伪装的路径都在这里检查：基础配置（含可读的隐藏密码，否则进去后没有回来的入口）
@@ -109,6 +114,13 @@ class SurfaceRuntime private constructor(private val app: Application) {
      * 导航限制、设备系统页放行和异常恢复（R27、R29、R30）。守护放弃恢复时打开的外部桌面：
      * 优先用户选定且仍有效的外部桌面，否则第一个候选。
      */
+    /** 桌面进入密码的锁状态（R33）：伪装模式进入、进程重启、熄屏后上锁。 */
+    val desktopLock = com.flue.launcher.surface.lock.DesktopLock(
+        store = { desktopLockStore },
+        mode = controller.mode,
+        scope = scope,
+    )
+
     val systemControl = com.flue.launcher.surface.system.SystemControl(
         app = app,
         controller = controller,
@@ -277,6 +289,7 @@ class SurfaceRuntime private constructor(private val app: Application) {
             if (intent.action == Intent.ACTION_SCREEN_OFF) {
                 onInterrupted()
                 systemControl.endHandoff()
+                desktopLock.onScreenOff()
             }
         }
     }
@@ -390,6 +403,9 @@ class SurfaceRuntime private constructor(private val app: Application) {
             val runtime = get(app)
             runtime.activityGuard.attach(app, runtime.controller)
             runtime.systemControl.attach()
+            runtime.desktopLock.attach(app) {
+                it is com.flue.launcher.LauncherActivity || it is com.flue.launcher.CrashActivity
+            }
             return runtime
         }
 
