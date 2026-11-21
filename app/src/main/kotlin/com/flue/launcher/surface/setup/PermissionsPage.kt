@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -27,6 +28,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.flue.launcher.R
 import com.flue.launcher.service.FlueAccessibilityService
+import com.flue.launcher.surface.comm.CommRole
+import com.flue.launcher.surface.comm.CommSystem
 import com.flue.launcher.surface.ui.FfluePageScaffold
 import com.flue.launcher.surface.ui.rememberResumeTick
 import com.flue.launcher.ui.settings.agent.AgentSettingsEntry
@@ -87,8 +90,32 @@ object PermissionProbe {
             } else {
                 PermissionStatus.NOT_APPLICABLE
             }
+            // R32：没有电话硬件或角色不可用时不计入，自研电话短信保持关闭。
+            PermissionItem.DIALER_ROLE -> roleStatus(context, CommRole.DIALER)
+            PermissionItem.SMS_ROLE -> roleStatus(context, CommRole.SMS)
+            PermissionItem.PHONE_CALLS, PermissionItem.CALL_LOG, PermissionItem.SMS, PermissionItem.COMM_NOTIFICATIONS -> {
+                val needed = runtimePermissions(item)
+                when {
+                    !CommSystem.hasTelephony(context) || needed == null -> PermissionStatus.NOT_APPLICABLE
+                    needed.all { granted(context, it) == PermissionStatus.GRANTED } -> PermissionStatus.GRANTED
+                    else -> PermissionStatus.DENIED
+                }
+            }
         }
     }.getOrDefault(PermissionStatus.DENIED)
+
+    private fun roleStatus(context: Context, role: CommRole): PermissionStatus = when {
+        !CommSystem.roleAvailable(context, role) -> PermissionStatus.NOT_APPLICABLE
+        CommSystem.holds(context, role) -> PermissionStatus.GRANTED
+        else -> PermissionStatus.DENIED
+    }
+
+    /** 角色项对应的通信角色；不是角色项为 null。 */
+    fun roleOf(item: PermissionItem): CommRole? = when (item) {
+        PermissionItem.DIALER_ROLE -> CommRole.DIALER
+        PermissionItem.SMS_ROLE -> CommRole.SMS
+        else -> null
+    }
 
     fun shizukuInstalled(context: Context): Boolean =
         runCatching { context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0) }.isSuccess
@@ -150,6 +177,14 @@ object PermissionProbe {
         } else {
             null
         }
+        PermissionItem.PHONE_CALLS -> arrayOf(Manifest.permission.CALL_PHONE, Manifest.permission.READ_PHONE_STATE)
+        PermissionItem.CALL_LOG -> arrayOf(Manifest.permission.READ_CALL_LOG)
+        PermissionItem.SMS -> arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)
+        PermissionItem.COMM_NOTIFICATIONS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            null
+        }
         else -> null
     }
 }
@@ -174,6 +209,12 @@ internal fun PermissionItem.labelRes(): Int = when (this) {
     PermissionItem.LOCATION -> R.string.surface_perm_location
     PermissionItem.CALENDAR -> R.string.surface_perm_calendar
     PermissionItem.ACTIVITY -> R.string.surface_perm_activity
+    PermissionItem.DIALER_ROLE -> R.string.surface_comm_perm_dialer_role
+    PermissionItem.SMS_ROLE -> R.string.surface_comm_perm_sms_role
+    PermissionItem.PHONE_CALLS -> R.string.surface_comm_perm_phone
+    PermissionItem.CALL_LOG -> R.string.surface_comm_perm_call_log
+    PermissionItem.SMS -> R.string.surface_comm_perm_sms
+    PermissionItem.COMM_NOTIFICATIONS -> R.string.surface_comm_perm_notifications
 }
 
 /**
@@ -197,8 +238,37 @@ internal fun PermissionsPage(
         refresh++
     }
     var rootChecking by remember { mutableIntStateOf(0) }
+    var roleRequest by remember { mutableStateOf<com.flue.launcher.surface.comm.TakeoverRequest?>(null) }
+    // 角色申请的结果靠读回系统实际默认应用确认，不看返回码（R32）。
+    val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        val request = roleRequest
+        roleRequest = null
+        refresh++
+        if (request != null) {
+            Toast.makeText(
+                context,
+                if (CommSystem.finishTakeover(context, request)) R.string.surface_comm_role_taken else R.string.surface_comm_role_not_taken,
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
 
     fun act(item: PermissionItem) {
+        PermissionProbe.roleOf(item)?.let { role ->
+            if (CommSystem.holds(context, role)) return
+            // 通话中不切换角色，避免影响正在进行的通话（R32）。
+            if (CommSystem.inCall(context)) {
+                Toast.makeText(context, R.string.surface_comm_role_in_call, Toast.LENGTH_SHORT).show()
+                return
+            }
+            val request = CommSystem.takeoverRequest(context, role)
+            if (request == null || runCatching { roleRequest = request; roleLauncher.launch(request.intent) }.isFailure) {
+                request?.let { CommSystem.finishTakeover(context, it) }
+                roleRequest = null
+                Toast.makeText(context, R.string.surface_comm_role_unavailable, Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
         if (item == PermissionItem.ROOT) {
             if (rootChecking > 0) return
             rootChecking++
@@ -253,7 +323,13 @@ internal fun PermissionsPage(
                         it.group == summary.group && statuses[it] != PermissionStatus.NOT_APPLICABLE
                     }
                     if (items.isEmpty()) {
-                        AgentSettingsEntry(title = stringResource(R.string.surface_perm_group_empty), last = true)
+                        AgentSettingsEntry(
+                            title = stringResource(
+                                if (summary.group == PermissionGroup.PHONE_SMS) R.string.surface_comm_perm_no_telephony
+                                else R.string.surface_perm_group_empty,
+                            ),
+                            last = true,
+                        )
                     } else {
                         AgentSettingsEntry(
                             title = stringResource(R.string.surface_perm_group_count, summary.configured, summary.total),
@@ -270,11 +346,14 @@ internal fun PermissionsPage(
                                 subtitle = stringResource(
                                     when {
                                         item == PermissionItem.ROOT && rootChecking > 0 -> R.string.surface_perm_status_checking
+                                        status == PermissionStatus.GRANTED && PermissionProbe.roleOf(item) != null ->
+                                            R.string.surface_comm_perm_role_default
                                         status == PermissionStatus.GRANTED -> R.string.surface_perm_status_granted
                                         item == PermissionItem.ROOT -> R.string.surface_perm_status_root_unchecked
                                         item == PermissionItem.SHIZUKU && status == PermissionStatus.UNCHECKED ->
                                             R.string.surface_perm_status_shizuku_installed
                                         item == PermissionItem.SHIZUKU -> R.string.surface_perm_status_shizuku_missing
+                                        PermissionProbe.roleOf(item) != null -> R.string.surface_comm_perm_role_not_default
                                         else -> R.string.surface_perm_status_denied
                                     },
                                 ),

@@ -627,7 +627,7 @@ class AppRepository(private val context: Context) {
             }
         }
         if (appInfo.packageName == context.packageName &&
-            !com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolActivity(appInfo.packageName, appInfo.activityName)
+            !com.flue.launcher.surface.apps.SelfModules.isModule(appInfo, context.packageName)
         ) {
             return false
         }
@@ -1783,6 +1783,8 @@ class AppRepository(private val context: Context) {
     private fun isNotPublic(app: AppInfo): Boolean {
         if (app.isFolder) return false
         val whitelist = publicWhitelist ?: return false
-        return !PublicAppRules.isPublic(app.componentKey, app.packageName, app.isBuiltInSettingsEntry, whitelist)
+        // 本应用的内置模块（电话、短信、工具）与内置设置一样总是公开（R08、R31、R32）。
+        val builtIn = app.isBuiltInSettingsEntry || com.flue.launcher.surface.apps.SelfModules.isModule(app, context.packageName)
+        return !PublicAppRules.isPublic(app.componentKey, app.packageName, builtIn, whitelist)
     }
 }

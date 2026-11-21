@@ -49,6 +49,8 @@ import kotlin.math.min
 object SecretInterruptions {
     /** 不申请电话权限，按音频模式判断正在通话或响铃。 */
     fun inCall(context: Context): Boolean {
+        // 本应用是默认电话时，通话服务确切知道有没有通话或来电（R32）。
+        if (com.flue.launcher.surface.comm.CallRegistry.hasLiveCall.value) return true
         val mode = runCatching { context.getSystemService(AudioManager::class.java)?.mode }.getOrNull()
         return mode == AudioManager.MODE_IN_CALL ||
             mode == AudioManager.MODE_IN_COMMUNICATION ||

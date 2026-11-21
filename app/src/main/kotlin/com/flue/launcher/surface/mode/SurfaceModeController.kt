@@ -99,6 +99,17 @@ class SurfaceModeController(
         return storage.writeExternalTarget(target)
     }
 
+    /**
+     * 退出外部前的目标检查（R07），不改变任何状态：null 表示目标可用。
+     * 退出前要做的其他准备（例如交还通信角色，R32）先用它确认目标，再动系统状态。
+     */
+    fun externalTargetProblem(): ModeSwitchResult.FailureReason? {
+        val target = storage.readExternalTarget()?.takeIf { it.isNotBlank() && !isOwnComponent(it) }
+            ?: return ModeSwitchResult.FailureReason.EXTERNAL_TARGET_MISSING
+        if (!effects.isLaunchableHome(target)) return ModeSwitchResult.FailureReason.EXTERNAL_TARGET_INVALID
+        return null
+    }
+
     fun switchTo(target: SurfaceMode): ModeSwitchResult {
         if (!switching.compareAndSet(false, true)) return Busy
         try {

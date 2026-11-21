@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R32 独立 SIM 通信：电话、短信、通信角色接管与恢复。伪装模式可见的文字不出现权限、授权、Root 字样（R28）。 -->
+<resources>
+    <!-- 模块 -->
+    <string name="surface_comm_phone_title">电话</string>
+    <string name="surface_comm_sms_title">短信</string>
+    <string name="surface_comm_unknown_number">未知号码</string>
+    <string name="surface_comm_role_dialer">电话</string>
+    <string name="surface_comm_role_sms">短信</string>
+
+    <!-- 能力不足 -->
+    <string name="surface_comm_block_no_hardware">本设备不支持电话和短信</string>
+    <string name="surface_comm_block_no_sim">没有可用的 SIM 卡，无法拨打普通电话或发送短信；紧急呼叫交给系统处理</string>
+    <string name="surface_comm_block_dial_system">拨号会交给系统电话完成</string>
+    <string name="surface_comm_block_dial_permission">未开启拨打电话权限，拨号会交给系统电话。可在 设置 → 桌面模式 → 授权 中开启</string>
+    <string name="surface_comm_block_incall_system">来电和通话由系统电话界面处理</string>
+    <string name="surface_comm_block_not_default_dialer">FFlue 不是默认电话应用，来电和通话仍由原电话应用处理。可在 设置 → 桌面模式 → 授权 中设置</string>
+    <string name="surface_comm_block_not_default_sms">FFlue 不是默认短信应用，新短信仍由原短信应用接收。可在 设置 → 桌面模式 → 授权 中设置</string>
+    <string name="surface_comm_block_role_unavailable">本系统不允许更换这个默认应用，自研功能保持关闭，原通信服务不受影响</string>
+    <string name="surface_comm_block_log_unavailable">暂时无法显示通话记录</string>
+    <string name="surface_comm_block_log_permission">未开启通话记录权限。可在 设置 → 桌面模式 → 授权 中开启</string>
+    <string name="surface_comm_block_sms_unavailable">暂时无法使用短信</string>
+    <string name="surface_comm_block_sms_read_permission">未开启短信权限，无法读取短信。可在 设置 → 桌面模式 → 授权 中开启</string>
+    <string name="surface_comm_block_sms_send_permission">未开启发送短信权限。可在 设置 → 桌面模式 → 授权 中开启</string>
+    <string name="surface_comm_block_sms_receive_system">新短信由系统短信应用接收</string>
+
+    <!-- 拨号与通话记录 -->
+    <string name="surface_comm_dial_hint">输入号码</string>
+    <string name="surface_comm_dial_call">拨打</string>
+    <string name="surface_comm_dial_delete">删除</string>
+    <string name="surface_comm_dial_handed">已交给系统电话</string>
+    <string name="surface_comm_dial_invalid">号码无效</string>
+    <string name="surface_comm_dial_failed">无法拨出：没有可用的电话服务</string>
+    <string name="surface_comm_return_to_call">返回通话</string>
+    <string name="surface_comm_log_title">通话记录</string>
+    <string name="surface_comm_log_empty">没有通话记录</string>
+    <string name="surface_comm_log_incoming">呼入</string>
+    <string name="surface_comm_log_outgoing">呼出</string>
+    <string name="surface_comm_log_missed">未接</string>
+    <string name="surface_comm_log_rejected">已拒接</string>
+    <string name="surface_comm_log_blocked">已拦截</string>
+    <string name="surface_comm_log_other">其他</string>
+
+    <!-- 通话界面 -->
+    <string name="surface_comm_call_incoming">来电</string>
+    <string name="surface_comm_call_connecting">正在连接…</string>
+    <string name="surface_comm_call_dialing">正在拨号…</string>
+    <string name="surface_comm_call_ongoing">通话中</string>
+    <string name="surface_comm_call_holding">已保持</string>
+    <string name="surface_comm_call_ended">通话已结束</string>
+    <string name="surface_comm_call_answer">接听</string>
+    <string name="surface_comm_call_reject">拒接</string>
+    <string name="surface_comm_call_hang_up">挂断</string>
+    <string name="surface_comm_call_mute">静音</string>
+    <string name="surface_comm_call_speaker">免提</string>
+    <string name="surface_comm_call_keypad">键盘</string>
+    <string name="surface_comm_call_keypad_close">收起键盘</string>
+    <string name="surface_comm_call_hold">保持</string>
+    <string name="surface_comm_call_unhold">恢复</string>
+    <string name="surface_comm_call_others_fmt">另有 %1$d 个通话</string>
+    <string name="surface_comm_call_return_fmt">%1$s · 点按返回通话</string>
+    <string name="surface_comm_call_back_hint">返回不会挂断，可从通知或电话回到通话</string>
+
+    <!-- 通知渠道 -->
+    <string name="surface_comm_channel_incoming">来电</string>
+    <string name="surface_comm_channel_ongoing">通话中</string>
+    <string name="surface_comm_channel_sms">短信</string>
+    <string name="surface_comm_channel_notice">通信提示</string>
+
+    <!-- 短信 -->
+    <string name="surface_comm_sms_new">新信息</string>
+    <string name="surface_comm_sms_threads">会话</string>
+    <string name="surface_comm_sms_empty">没有短信</string>
+    <string name="surface_comm_sms_unread_fmt">%1$s（%2$d 条未读）</string>
+    <string name="surface_comm_sms_thread_empty">这个会话还没有短信</string>
+    <string name="surface_comm_sms_to">收件人</string>
+    <string name="surface_comm_sms_input_hint">输入短信</string>
+    <string name="surface_comm_sms_send">发送</string>
+    <string name="surface_comm_sms_segments_fmt">将分 %1$d 条发送</string>
+    <string name="surface_comm_sms_sending">发送中</string>
+    <string name="surface_comm_sms_sent">已发送</string>
+    <string name="surface_comm_sms_failed">发送失败</string>
+    <string name="surface_comm_sms_draft">草稿</string>
+    <string name="surface_comm_sms_no_recipient">请输入收件人号码</string>
+    <string name="surface_comm_sms_submit_failed">短信没有交给系统发送</string>
+    <string name="surface_comm_sms_failed_title">短信发送失败</string>
+    <string name="surface_comm_sms_failed_body">有短信没有发出，请检查信号后重新发送</string>
+    <string name="surface_comm_mms_title">收到一条彩信</string>
+    <string name="surface_comm_mms_body">FFlue 暂不支持彩信，内容没有下载。需要查看彩信时，请把默认短信应用换回原应用</string>
+
+    <!-- 授权页（只在完整设置和引导中） -->
+    <string name="surface_comm_perm_dialer_role">默认电话应用</string>
+    <string name="surface_comm_perm_sms_role">默认短信应用</string>
+    <string name="surface_comm_perm_phone">拨打电话与通话状态</string>
+    <string name="surface_comm_perm_call_log">通话记录</string>
+    <string name="surface_comm_perm_sms">发送、读取和接收短信</string>
+    <string name="surface_comm_perm_notifications">来电与短信通知</string>
+    <string name="surface_comm_perm_role_default">已是默认；退出到外部桌面时会交还原应用</string>
+    <string name="surface_comm_perm_role_not_default">不是默认，点按设为默认（会先记录当前默认应用）</string>
+    <string name="surface_comm_perm_no_telephony">本设备不支持电话和短信</string>
+    <string name="surface_comm_role_taken">已读回确认：FFlue 是默认应用</string>
+    <string name="surface_comm_role_not_taken">读回不是 FFlue：没有成为默认应用</string>
+    <string name="surface_comm_role_in_call">正在通话，通话结束后再切换默认应用</string>
+    <string name="surface_comm_role_unavailable">本系统不允许更换这个默认应用</string>
+
+    <!-- 退出外部前恢复角色 -->
+    <string name="surface_comm_restore_title">交还电话和短信</string>
+    <string name="surface_comm_restore_subtitle">退出到外部桌面前，把 FFlue 接管的默认应用交还给原应用</string>
+    <string name="surface_comm_restore_roles">要处理的默认应用</string>
+    <string name="surface_comm_restore_none">没有需要交还的默认应用</string>
+    <string name="surface_comm_restore_state_done">已处理</string>
+    <string name="surface_comm_restore_state_skipped">未恢复（仍由 FFlue 持有）</string>
+    <string name="surface_comm_restore_state_pending">待恢复</string>
+    <string name="surface_comm_restore_current_fmt">当前：%1$s</string>
+    <string name="surface_comm_restore_holder_none">无</string>
+    <string name="surface_comm_restore_busy">正在恢复并读回系统结果…</string>
+    <string name="surface_comm_restore_finishing">已处理完，正在退出到外部桌面…</string>
+    <string name="surface_comm_restore_in_call_title">正在通话</string>
+    <string name="surface_comm_restore_in_call_body">通话中不切换默认%1$s应用，也不会挂断。通话结束后点“继续”，或取消退出</string>
+    <string name="surface_comm_restore_continue">继续</string>
+    <string name="surface_comm_restore_cancel">取消退出</string>
+    <string name="surface_comm_restore_cancelled">已取消退出，桌面模式未改变</string>
+    <string name="surface_comm_restore_ready_original_fmt">把默认%1$s应用恢复为原应用 %2$s</string>
+    <string name="surface_comm_restore_ready_chosen_fmt">把默认%1$s应用交给 %2$s</string>
+    <string name="surface_comm_restore_via_root">点按用 Root 恢复，完成后读回确认</string>
+    <string name="surface_comm_restore_via_settings">点按打开系统“默认应用”，请选择 %1$s，然后返回这里</string>
+    <string name="surface_comm_restore_via_dialog">点按后在系统对话框中确认 %1$s</string>
+    <string name="surface_comm_restore_pick_other">选择其他应用</string>
+    <string name="surface_comm_restore_back">返回</string>
+    <string name="surface_comm_restore_candidates_fmt">可以担任%1$s的应用</string>
+    <string name="surface_comm_restore_no_candidates">没有其他可以担任的应用</string>
+    <string name="surface_comm_restore_problem_unrecorded">接管前没有记录到原%1$s应用（当时 FFlue 已是默认），请选择要交还的应用</string>
+    <string name="surface_comm_restore_problem_empty">接管前系统没有默认%1$s应用。空的默认应用不能算恢复，请选择要交还的应用</string>
+    <string name="surface_comm_restore_problem_unavailable">原%1$s应用已卸载或不能再担任，请选择要交还的应用</string>
+    <string name="surface_comm_restore_failed_self">读回仍是 FFlue：没有恢复默认%1$s应用（可能取消了系统选择）</string>
+    <string name="surface_comm_restore_failed_empty">读回默认%1$s应用为空：只撤销了 FFlue，没有恢复为 %2$s</string>
+    <string name="surface_comm_restore_failed_other">读回默认%1$s应用是 %3$s，不是 %2$s</string>
+    <string name="surface_comm_restore_retry">重试</string>
+    <string name="surface_comm_restore_accept_fmt">保留 %1$s 作为默认应用</string>
+    <string name="surface_comm_restore_skip">不恢复，继续退出</string>
+    <string name="surface_comm_restore_skip_sub">默认%1$s应用仍由 FFlue 持有，以后可再交还</string>
+    <string name="surface_comm_restore_kept_notice">已退出；部分默认应用仍由 FFlue 持有，没有恢复</string>
+    <string name="surface_comm_restore_open_failed">无法打开系统默认应用设置</string>
+    <string name="surface_comm_restore_pending_title">通信默认应用恢复未完成</string>
+    <string name="surface_comm_restore_pending_sub">上次退出到外部桌面时没有处理完，点按查看并继续或取消</string>
+</resources>

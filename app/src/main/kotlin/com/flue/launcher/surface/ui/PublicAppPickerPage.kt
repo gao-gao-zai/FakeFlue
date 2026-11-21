@@ -90,9 +90,10 @@ internal fun PublicAppPickerPage(
         val publicApps = publicSnapshot ?: return@produceState
         value = withContext(Dispatchers.Default) {
             val latin = HanLatin.create()
+            // 内置设置和本应用的内置模块总是公开，不在选择器里列出（R08、R32）。
             apps.filterNot {
                 it.isBuiltInSettingsEntry || it.isFolder ||
-                    com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolComponentKey(it.componentKey)
+                    com.flue.launcher.surface.apps.SelfModules.isModule(it, context.packageName)
             }
                 .let { list ->
                     when (purpose) {

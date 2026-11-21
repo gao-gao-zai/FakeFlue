@@ -73,7 +73,11 @@ internal fun PublicOverridesPage(apps: List<AppInfo>, onBack: () -> Unit) {
             emptyList()
         } else {
             apps.filterNot { it.isFolder }
-                .filter { PublicAppRules.isPublic(it.componentKey, it.packageName, it.isBuiltInSettingsEntry, whitelist) }
+                .filter {
+                    val builtIn = it.isBuiltInSettingsEntry ||
+                        com.flue.launcher.surface.apps.SelfModules.isModule(it, context.packageName)
+                    PublicAppRules.isPublic(it.componentKey, it.packageName, builtIn, whitelist)
+                }
                 .distinctBy { it.componentKey }
         }
     }

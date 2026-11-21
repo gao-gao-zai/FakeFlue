@@ -177,6 +177,21 @@ class SurfaceModeControllerTest {
     }
 
     @Test
+    fun externalTargetProblemIsCheckedBeforeRestoringRoles() {
+        // R32：退出外部前先确认目标，避免先交还电话／短信再因目标无效失败。
+        assertEquals(FailureReason.EXTERNAL_TARGET_MISSING, controller.externalTargetProblem())
+        storage.target = "com.gaozai.surface/com.flue.launcher.LauncherActivity"
+        assertEquals(FailureReason.EXTERNAL_TARGET_MISSING, controller.externalTargetProblem())
+        storage.target = "com.missing/.Home"
+        assertEquals(FailureReason.EXTERNAL_TARGET_INVALID, controller.externalTargetProblem())
+        storage.target = "com.other.home/.Home"
+        assertEquals(null, controller.externalTargetProblem())
+        // 只检查，不切换。
+        assertEquals(SurfaceMode.FULL, controller.mode.value)
+        assertTrue(effects.events.isEmpty())
+    }
+
+    @Test
     fun storedSelfTargetIsTreatedAsMissing() {
         storage.target = "com.gaozai.surface/com.flue.launcher.LauncherActivity"
         assertEquals(ModeSwitchResult.Failed(FailureReason.EXTERNAL_TARGET_MISSING), controller.switchTo(SurfaceMode.EXTERNAL))

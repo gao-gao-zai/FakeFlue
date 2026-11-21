@@ -47,6 +47,18 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- R32 独立 SIM 通信：只在完整设置／引导的授权页由用户点击后申请；没有电话硬件也能安装。 -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
@@ -434,6 +446,136 @@
                 android:name="android.app.device_admin"
                 android:resource="@xml/flue_device_admin" />
         </receiver>
+
+        <!-- R32 电话：内置模块入口；也是成为默认电话应用所需的 DIAL／tel: 入口。 -->
+        <activity
+            android:name="com.flue.launcher.surface.comm.PhoneActivity"
+            android:exported="true"
+            android:label="@string/surface_comm_phone_title"
+            android:icon="@mipmap/ic_comm_phone"
+            android:roundIcon="@mipmap/ic_comm_phone"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.flue.launcher.comm.phone"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tel" />
+            </intent-filter>
+        </activity>
+
+        <!-- R32 来电／通话中界面：锁屏上显示，桌面锁对它豁免；返回不挂断。 -->
+        <activity
+            android:name="com.flue.launcher.surface.comm.InCallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.flue.launcher.comm.call"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
+
+        <service
+            android:name="com.flue.launcher.surface.comm.FflueInCallService"
+            android:exported="true"
+            android:permission="android.permission.BIND_INCALL_SERVICE">
+            <meta-data
+                android:name="android.telecom.IN_CALL_SERVICE_UI"
+                android:value="true" />
+            <intent-filter>
+                <action android:name="android.telecom.InCallService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="com.flue.launcher.surface.comm.CallActionReceiver"
+            android:exported="false" />
+
+        <!-- R32 短信：内置模块入口；也是成为默认短信应用所需的 SENDTO 入口。 -->
+        <activity
+            android:name="com.flue.launcher.surface.comm.MessagesActivity"
+            android:exported="true"
+            android:label="@string/surface_comm_sms_title"
+            android:icon="@mipmap/ic_comm_messages"
+            android:roundIcon="@mipmap/ic_comm_messages"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.flue.launcher.comm.sms"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SENDTO" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name="com.flue.launcher.surface.comm.SmsDeliverReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 彩信只登记（默认短信应用必需），收到时如实提示不支持。 -->
+        <receiver
+            android:name="com.flue.launcher.surface.comm.MmsDeliverReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_WAP_PUSH">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.flue.launcher.surface.comm.SmsSentReceiver"
+            android:exported="false" />
+
+        <service
+            android:name="com.flue.launcher.surface.comm.RespondViaMessageService"
+            android:exported="true"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </service>
+
+        <!-- R32 退出外部前交还通信角色。只由本应用打开。 -->
+        <activity
+            android:name="com.flue.launcher.surface.comm.CommRestoreActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WatchLauncher"
+            android:screenOrientation="portrait" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

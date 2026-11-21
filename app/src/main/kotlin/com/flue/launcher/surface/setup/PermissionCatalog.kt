@@ -9,6 +9,21 @@ enum class PermissionItem(val group: PermissionGroup) {
     ACCESSIBILITY(PermissionGroup.SYSTEM_CONTROL),
     OVERLAY(PermissionGroup.SYSTEM_CONTROL),
     WRITE_SETTINGS(PermissionGroup.SYSTEM_CONTROL),
+    /** R32：默认电话应用（来电、通话中界面）。 */
+    DIALER_ROLE(PermissionGroup.PHONE_SMS),
+
+    /** R32：默认短信应用（接收并写入短信）。 */
+    SMS_ROLE(PermissionGroup.PHONE_SMS),
+
+    /** 拨打电话、读取通话状态。 */
+    PHONE_CALLS(PermissionGroup.PHONE_SMS),
+    CALL_LOG(PermissionGroup.PHONE_SMS),
+
+    /** 发送、读取、接收短信。 */
+    SMS(PermissionGroup.PHONE_SMS),
+
+    /** Android 13+：来电与短信通知。 */
+    COMM_NOTIFICATIONS(PermissionGroup.PHONE_SMS),
     NOTIFICATION_LISTENER(PermissionGroup.NOTIFICATIONS),
     DND_ACCESS(PermissionGroup.NOTIFICATIONS),
     /** R31：闹钟、计时器到点通知。 */

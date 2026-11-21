@@ -78,8 +78,14 @@ internal fun SurfaceModeSettingsPage(
     val scope = rememberCoroutineScope()
 
     fun switch(target: SurfaceMode) {
+        // 退出外部前先交还本应用接管的电话、短信角色，全部处理完才真正切换（R07、R32）。
+        if (target == SurfaceMode.EXTERNAL && com.flue.launcher.surface.comm.CommExit.needsRestoreFirst(context)) {
+            context.startActivity(com.flue.launcher.surface.comm.CommRestoreActivity.intent(context))
+            return
+        }
         context.reportModeSwitch(controller.switchTo(target), target)
     }
+    val commRestorePending = remember(resumeTick) { com.flue.launcher.surface.comm.CommSystem.restorePending(context) }
 
     AgentSettingsScreen(
         stateKey = "surface_mode_settings",
@@ -98,6 +104,14 @@ internal fun SurfaceModeSettingsPage(
         }
         item(key = "surface_switch") {
             AgentSettingsGroup(stringResource(R.string.surface_section_switch)) {
+                if (commRestorePending) {
+                    // 恢复进行到一半（例如系统角色变化结束了进程）：可查看并继续处理（R30、R32）。
+                    AgentSettingsEntry(
+                        title = stringResource(R.string.surface_comm_restore_pending_title),
+                        subtitle = stringResource(R.string.surface_comm_restore_pending_sub),
+                        onClick = { context.startActivity(com.flue.launcher.surface.comm.CommRestoreActivity.intent(context)) },
+                    )
+                }
                 if (mode != SurfaceMode.DISGUISE) {
                     AgentSettingsEntry(
                         title = stringResource(R.string.surface_action_enter_disguise),
