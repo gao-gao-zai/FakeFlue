@@ -128,6 +128,17 @@ object JbWatchFaceStorage {
         }.sortedBy { it.displayName.lowercase(Locale.ROOT) }
     }
 
+    /** R35：只读取一个已安装表盘，结果与 [scan] 里的同一项相同；读不到时返回 null，调用方退回全量扫描。 */
+    fun describeInstalled(context: Context, id: String): WatchFaceDescriptor? {
+        if (!id.startsWith(JBWATCH_ID_PREFIX)) return null
+        val name = id.removePrefix(JBWATCH_ID_PREFIX)
+        if (name.isEmpty() || name.contains('/') || name.contains('\\') || name == "." || name == "..") return null
+        val root = rootDir(context).canonicalFile
+        val dir = File(root, name)
+        if (!dir.isDirectory || dir.canonicalFile.parentFile != root) return null
+        return runCatching { parseMetadata(dir).toDescriptor() }.getOrNull()?.takeIf { it.id == id }
+    }
+
     fun hasJbWatchStructure(rootDir: File): Boolean {
         val watchXml = File(rootDir, "watch.xml")
         val watchPxml = File(rootDir, "watch.pxml")

@@ -98,19 +98,7 @@ object WatchmakerWatchFaceStorage {
             .filter { it.isDirectory && !it.name.startsWith(".") }
             .forEach { directory ->
                 try {
-                    val legacyInstalledAt = directory.lastModified()
-                        .takeIf { it > 0L }
-                        ?: System.currentTimeMillis()
-                    // Persist before repair creates decoded files so migration
-                    // cannot move a legacy face to the top of the list.
-                    val installedAt = WatchInstallMetadata.readOrCreate(directory, legacyInstalledAt)
-                    val watchXml = installer.repairInstalledPackage(directory)
-                    val metadata = metadataReader.read(watchXml)
-                    val descriptor = metadata.toDescriptor(
-                        stableId = directory.name,
-                        rootDirectory = directory,
-                        preferredPreview = previewNextTo(watchXml),
-                    )
+                    val (descriptor, installedAt) = describeDirectory(directory, metadataReader, installer)
                     ordered += WatchInstallOrder(
                         value = descriptor,
                         installedAtEpochMs = installedAt,
@@ -132,6 +120,42 @@ object WatchmakerWatchFaceStorage {
             descriptors = orderWatchInstalls(ordered),
             failures = failures,
         )
+    }
+
+    /**
+     * R35：只读取一个已安装表盘，得到和 [scan] 完全相同的描述，让冷启动的当前表盘不必等全部表盘扫完。
+     * 不是本存储里的普通安装目录（含点开头的临时目录、越界名称）时返回 null，调用方退回全量扫描。
+     */
+    fun describeInstalled(context: Context, id: String): WatchFaceDescriptor? {
+        if (!id.startsWith(WATCHMAKER_ID_PREFIX)) return null
+        val stableId = id.removePrefix(WATCHMAKER_ID_PREFIX)
+        if (stableId.isEmpty() || stableId.startsWith(".") || stableId.contains('/') || stableId.contains('\\')) return null
+        val root = rootDirectory(context).canonicalFile
+        val directory = File(root, stableId)
+        if (!directory.isDirectory || directory.canonicalFile.parentFile != root) return null
+        val metadataReader = WatchmakerMetadataReader(File(context.cacheDir, "watchmaker-metadata"))
+        return describeDirectory(directory, metadataReader, WatchArchiveInstaller()).first
+    }
+
+    private fun describeDirectory(
+        directory: File,
+        metadataReader: WatchmakerMetadataReader,
+        installer: WatchArchiveInstaller,
+    ): Pair<WatchFaceDescriptor, Long> {
+        val legacyInstalledAt = directory.lastModified()
+            .takeIf { it > 0L }
+            ?: System.currentTimeMillis()
+        // Persist before repair creates decoded files so migration
+        // cannot move a legacy face to the top of the list.
+        val installedAt = WatchInstallMetadata.readOrCreate(directory, legacyInstalledAt)
+        val watchXml = installer.repairInstalledPackage(directory)
+        val metadata = metadataReader.read(watchXml)
+        val descriptor = metadata.toDescriptor(
+            stableId = directory.name,
+            rootDirectory = directory,
+            preferredPreview = previewNextTo(watchXml),
+        )
+        return descriptor to installedAt
     }
 
     fun delete(context: Context, descriptor: WatchFaceDescriptor): Boolean {

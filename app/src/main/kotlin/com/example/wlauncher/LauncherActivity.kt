@@ -171,6 +171,10 @@ private const val WIDGET_HOST_LOG_TAG = "FlueWidgetHost"
  * 只会互相抢资源、把加载本身拖得更慢。让它们先跑一段。
  */
 private const val SIDE_PAGE_PREWARM_DELAY_MS = 300L
+/** R35：侧页预热先等当前表盘首帧画好，最多等这么久，避免和表盘加载抢主线程。 */
+private const val SIDE_PAGE_PREWARM_MAX_WAIT_MS = 3_000L
+/** R35：表盘可操作后，导航限制最多再等这么久没有结论就先输出启动计时。 */
+private const val STARTUP_GUARD_REPORT_WAIT_MS = 30_000L
 
 internal fun notificationUnderlayBlurProgress(
     notificationReturnState: ScreenState,
@@ -231,6 +235,7 @@ class LauncherActivity : FlueComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.flue.launcher.surface.startup.StartupTimeline.mark(com.flue.launcher.surface.startup.StartupTimeline.Mark.LAUNCHER_CREATE)
         // FFlue：首次使用引导与外部模式的 HOME 转交（R05、R18）。
         if (savedInstanceState == null) {
             SurfaceRuntime.get(this).onLauncherIntent(this, intent.isLauncherHomeIntent())
@@ -1686,6 +1691,28 @@ fun LauncherScreen(vm: LauncherViewModel, aodController: AodController? = null) 
         )
         val faceRenderReady = faceRenderGate.ready
         val markFaceRenderReady = faceRenderGate.onRenderReady
+        val latestFaceReady = rememberUpdatedState(watchFaceSelectionReady && faceRenderReady)
+
+        // R35：冷启动计时。“完整表盘可操作”= 当前表盘选好且首帧画出（手势随之解锁），不看启动动画。
+        val startupActivity = LocalContext.current as? android.app.Activity
+        LaunchedEffect(Unit) {
+            androidx.compose.runtime.withFrameNanos { }
+            com.flue.launcher.surface.startup.StartupTimeline.mark(com.flue.launcher.surface.startup.StartupTimeline.Mark.FIRST_FRAME)
+        }
+        LaunchedEffect(watchFaceSelectionReady) {
+            if (watchFaceSelectionReady) {
+                com.flue.launcher.surface.startup.StartupTimeline.mark(com.flue.launcher.surface.startup.StartupTimeline.Mark.FACE_SELECTED)
+            }
+        }
+        LaunchedEffect(watchFaceSelectionReady && faceRenderReady) {
+            if (watchFaceSelectionReady && faceRenderReady) {
+                androidx.compose.runtime.withFrameNanos { }
+                com.flue.launcher.surface.startup.StartupTimeline.mark(com.flue.launcher.surface.startup.StartupTimeline.Mark.FACE_INTERACTIVE)
+                runCatching { startupActivity?.reportFullyDrawn() }
+                delay(STARTUP_GUARD_REPORT_WAIT_MS)
+                com.flue.launcher.surface.startup.StartupTimeline.flushIfPending()
+            }
+        }
 
         LaunchedEffect(backPressRequests) {
             if (backPressRequests > 0L) {
@@ -1758,6 +1785,10 @@ fun LauncherScreen(vm: LauncherViewModel, aodController: AodController? = null) 
         // 那一半。改成只延后一拍、不看加载状态，两种启动都预热到。
         LaunchedEffect(Unit) {
             delay(SIDE_PAGE_PREWARM_DELAY_MS)
+            // R35：冷启动时先让当前表盘画出来再预热（热启动表盘已就绪，不会多等）；封顶等待，照样预热到。
+            withTimeoutOrNull(SIDE_PAGE_PREWARM_MAX_WAIT_MS) {
+                snapshotFlow { latestFaceReady.value }.first { it }
+            }
             sidePagePrewarmed = true
         }
         // 预热单独一条判据，**不并进 sideSceneOverlayActive**：那个标志被表盘

@@ -164,6 +164,11 @@ fun DesktopLockHost() {
     val lock = runtime.desktopLock
     val locked by lock.locked.collectAsState()
     if (!locked) return
+    // R35：启用桌面密码时，密码页就是首个可操作页面。
+    LaunchedEffect(Unit) {
+        androidx.compose.runtime.withFrameNanos { }
+        com.flue.launcher.surface.startup.StartupTimeline.mark(com.flue.launcher.surface.startup.StartupTimeline.Mark.LOCK_SHOWN)
+    }
 
     val style = LauncherTheme.style
     val entry = remember { PinEntry() }

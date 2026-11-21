@@ -44,6 +44,18 @@ class SystemControl(
 
     val status: StateFlow<NavGuardStatus> get() = guard.status
 
+    /** R35：导航限制就绪单独计时；Applying、失败等中间状态不算结论。 */
+    private fun reportStartup(status: NavGuardStatus) {
+        when (status) {
+            NavGuardStatus.Active -> com.flue.launcher.surface.startup.StartupTimeline.mark(
+                com.flue.launcher.surface.startup.StartupTimeline.Mark.GUARD_ACTIVE,
+            )
+            NavGuardStatus.NotNeeded, NavGuardStatus.Released ->
+                com.flue.launcher.surface.startup.StartupTimeline.guardNotNeeded()
+            else -> Unit
+        }
+    }
+
     private val handoff = HandoffTracker()
     private val _handoffActive = MutableStateFlow(false)
     val handoffActive: StateFlow<Boolean> = _handoffActive.asStateFlow()
@@ -63,14 +75,18 @@ class SystemControl(
     }.distinctUntilChanged()
 
     init {
-        RootGuardConnection.stateDir(app).mkdirs()
         scope.launch(serial) {
+            // R35：建目录也是磁盘操作，放在守护的串行线程上，不占 Application.onCreate 的主线程。
+            RootGuardConnection.stateDir(app).mkdirs()
             // 本应用的通话服务一有来电／通话就放行，不等下一次音频轮询（R29 通话放行，R32）。
             combine(controller.mode, inCall, _handoffActive, com.flue.launcher.surface.comm.CallRegistry.hasLiveCall) { mode, call, handoff, ownCall ->
                 NavFacts(mode, call || ownCall, handoff)
             }
                 .distinctUntilChanged()
-                .collect { guard.update(it) }
+                .collect {
+                    guard.update(it)
+                    reportStartup(guard.status.value)
+                }
         }
         scope.launch {
             controller.mode.collect { mode ->
