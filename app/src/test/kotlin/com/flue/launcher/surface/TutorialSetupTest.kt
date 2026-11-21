@@ -103,7 +103,8 @@ class TutorialSetupTest {
         val face = byGroup.getValue(PermissionGroup.FACE_DATA)
         assertEquals(1, face.configured)
         assertEquals(2, face.total)
-        assertEquals(0, byGroup.getValue(PermissionGroup.PHONE_SMS).total)
+        // R32：两项默认应用角色、电话、通话记录、短信、通知，共 6 项。
+        assertEquals(6, byGroup.getValue(PermissionGroup.PHONE_SMS).total)
     }
 
     // ---- 教学状态机（R20）----

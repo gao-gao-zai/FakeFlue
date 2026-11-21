@@ -1797,15 +1797,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         // R10：伪装模式只启动公开应用；旧的快捷项、侧屏条目等残留入口也在这里挡住。
         val publicApps = surfaceRuntime.publicApps.value
+        // 本应用的内置模块（电话、短信、工具）与内置设置一样：两种模式都公开、可以启动（R08、R32）。
+        val selfModule = com.flue.launcher.surface.apps.SelfModules.isModule(appInfo, getApplication<Application>().packageName)
         if (publicApps != null && !com.flue.launcher.surface.apps.PublicAppRules.isPublic(
-                appInfo.componentKey, appInfo.packageName, appInfo.isBuiltInSettingsEntry, publicApps,
+                appInfo.componentKey, appInfo.packageName, appInfo.isBuiltInSettingsEntry || selfModule, publicApps,
             )
         ) {
             return
         }
-        // R31：本应用的内置工具页面可以从应用列表打开。
-        val builtInTool = com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolComponentKey(appInfo.componentKey)
-        if (!appInfo.isAppListShortcut && !builtInTool && appInfo.packageName == getApplication<Application>().packageName) {
+        if (!appInfo.isAppListShortcut && !selfModule && appInfo.packageName == getApplication<Application>().packageName) {
             Toast.makeText(getApplication(), "已阻止启动自身应用", Toast.LENGTH_SHORT).show()
             return
         }
@@ -1814,7 +1814,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             ExternalLaunchRequest(
                 targetKey = appInfo.componentKey,
                 expectedPackage = appInfo.packageName.takeIf {
-                    !appInfo.isBuiltInSettingsEntry && !builtInTool && it.isNotBlank()
+                    !appInfo.isBuiltInSettingsEntry && !selfModule && it.isNotBlank()
                 },
                 sourceState = returnState,
                 origin = origin.toNormalizedPoint(),

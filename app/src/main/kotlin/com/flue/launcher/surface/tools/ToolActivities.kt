@@ -66,6 +66,18 @@ abstract class ToolActivity : FlueComponentActivity() {
 
     companion object {
         const val EXTRA_FROM_ALERT = "com.flue.launcher.surface.tools.FROM_ALERT"
+
+        /**
+         * 桌面锁（R33）不拦正在响的闹钟、计时器：只认由到点提醒拉起、而且确实还在响的工具页，
+         * 关掉响铃后再回到前台就照常被锁拦回桌面。
+         */
+        fun isRingingAlert(activity: android.app.Activity): Boolean {
+            if (activity !is ToolActivity) return false
+            if (activity.intent?.getBooleanExtra(EXTRA_FROM_ALERT, false) != true) return false
+            val engine = ToolAlerts.engine(activity)
+            return engine.ringing.value.isNotEmpty() ||
+                engine.timer.value is com.flue.launcher.surface.tools.timer.TimerState.Fired
+        }
     }
 }
 

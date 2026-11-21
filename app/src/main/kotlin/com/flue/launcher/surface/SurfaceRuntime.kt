@@ -403,11 +403,15 @@ class SurfaceRuntime private constructor(private val app: Application) {
             val runtime = get(app)
             runtime.activityGuard.attach(app, runtime.controller)
             runtime.systemControl.attach()
-            runtime.desktopLock.attach(app) {
-                it is com.flue.launcher.LauncherActivity || it is com.flue.launcher.CrashActivity
-            }
+            runtime.desktopLock.attach(app, ::isDesktopLockExempt)
             return runtime
         }
+
+        /** 桌面锁不拦的页面：桌面本身（锁屏就在上面）、崩溃页、真实来电和通话界面，以及正在响的闹钟、计时器（R31、R32、R33）。 */
+        fun isDesktopLockExempt(activity: android.app.Activity): Boolean =
+            activity is com.flue.launcher.LauncherActivity || activity is com.flue.launcher.CrashActivity ||
+                com.flue.launcher.surface.comm.CommLockExemption.isExempt(activity.javaClass.name) ||
+                com.flue.launcher.surface.tools.ToolActivity.isRingingAlert(activity)
 
         fun get(context: Context): SurfaceRuntime {
             val app = context.applicationContext as Application

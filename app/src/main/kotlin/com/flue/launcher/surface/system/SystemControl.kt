@@ -65,7 +65,10 @@ class SystemControl(
     init {
         RootGuardConnection.stateDir(app).mkdirs()
         scope.launch(serial) {
-            combine(controller.mode, inCall, _handoffActive) { mode, call, handoff -> NavFacts(mode, call, handoff) }
+            // 本应用的通话服务一有来电／通话就放行，不等下一次音频轮询（R29 通话放行，R32）。
+            combine(controller.mode, inCall, _handoffActive, com.flue.launcher.surface.comm.CallRegistry.hasLiveCall) { mode, call, handoff, ownCall ->
+                NavFacts(mode, call || ownCall, handoff)
+            }
                 .distinctUntilChanged()
                 .collect { guard.update(it) }
         }

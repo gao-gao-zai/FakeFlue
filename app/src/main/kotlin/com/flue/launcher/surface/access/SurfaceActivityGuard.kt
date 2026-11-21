@@ -91,6 +91,9 @@ class SurfaceActivityGuard {
             "com.flue.launcher.ui.store.WatchStoreWebActivity" to SurfaceFeature.WATCH_STORE,
             "com.flue.launcher.BuiltInFileManagerActivity" to SurfaceFeature.FILE_MANAGER,
             "com.flue.launcher.CanvasAdjustActivity" to SurfaceFeature.ADVANCED_CANVAS,
+            // R08、R32：电话、短信两种模式都公开；来电／通话界面不列入，任何模式都不能被关闭。
+            "com.flue.launcher.surface.comm.PhoneActivity" to SurfaceFeature.TOOLS,
+            "com.flue.launcher.surface.comm.MessagesActivity" to SurfaceFeature.TOOLS,
         ) + com.flue.launcher.surface.tools.SurfaceTool.entries.associate { it.className to SurfaceFeature.TOOLS }
 
         fun featureOf(activityClassName: String): SurfaceFeature? = ACTIVITY_FEATURES[activityClassName]

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +47,11 @@ import com.flue.launcher.viewmodel.LauncherViewModel
 class PublicSettingsActivity : FlueComponentActivity() {
 
     private val vm: LauncherViewModel by viewModels()
+
+    /** 退出外部前交还通信角色（R32）；恢复页完成退出后关闭本页，取消则停在管理菜单。 */
+    private val commRestore = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) finish()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -152,6 +158,10 @@ class PublicSettingsActivity : FlueComponentActivity() {
     }
 
     private fun switchMode(target: SurfaceMode) {
+        if (target == SurfaceMode.EXTERNAL && com.flue.launcher.surface.comm.CommExit.needsRestoreFirst(this)) {
+            commRestore.launch(com.flue.launcher.surface.comm.CommRestoreActivity.intent(this))
+            return
+        }
         val result = SurfaceRuntime.get(this).controller.switchTo(target)
         reportModeSwitch(result, target)
         if (result != ModeSwitchResult.Success && result != ModeSwitchResult.AlreadyInMode) return
