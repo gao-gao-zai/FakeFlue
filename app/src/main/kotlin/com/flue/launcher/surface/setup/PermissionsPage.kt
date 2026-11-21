@@ -180,6 +180,10 @@ internal fun PermissionsPage(
             rootChecking++
             scope.launch {
                 val ok = PermissionProbe.requestRoot()
+                // 记下用户主动确认的结果：只有确认过才会启动导航守护（R28、R29）。
+                val runtime = com.flue.launcher.surface.SurfaceRuntime.get(context)
+                runtime.stateStore.rootConfirmed = ok
+                runtime.systemControl.retry()
                 rootChecking = 0
                 refresh++
                 Toast.makeText(

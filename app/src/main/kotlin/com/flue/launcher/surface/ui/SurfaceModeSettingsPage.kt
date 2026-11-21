@@ -46,6 +46,7 @@ internal fun SurfaceModeSettingsPage(
     onOpenNotificationApps: () -> Unit,
     onOpenPublicOverrides: () -> Unit,
     onOpenPermissions: () -> Unit,
+    onOpenSystemControl: () -> Unit,
 ) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
@@ -142,6 +143,11 @@ internal fun SurfaceModeSettingsPage(
                     title = stringResource(R.string.surface_perm_title),
                     subtitle = stringResource(R.string.surface_perm_entry_sub),
                     onClick = onOpenPermissions,
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_sys_title),
+                    subtitle = stringResource(R.string.surface_sys_entry_sub),
+                    onClick = onOpenSystemControl,
                 )
                 AgentSettingsEntry(
                     title = stringResource(R.string.surface_secret_title),

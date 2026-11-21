@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.flue.launcher.R
+import com.flue.launcher.surface.SurfaceRuntime
 import com.flue.launcher.surface.ui.FfluePageScaffold
 import com.flue.launcher.surface.ui.rememberResumeTick
 import com.flue.launcher.ui.settings.agent.AgentSettingsEntry
@@ -70,7 +71,12 @@ internal fun PublicSettingsListPage(onBack: () -> Unit, onOpenAbout: () -> Unit)
         val target = item.devicePage?.let { DeviceRouter.route(null, DeviceRouter.builtInAvailable(it)) }
             ?: DeviceRouteChoice.SYSTEM
         // 内置设备页尚不存在，target 目前总是 SYSTEM。
-        if (target == DeviceRouteChoice.SYSTEM && !context.openSystemSettings(item.systemActions)) {
+        if (target != DeviceRouteChoice.SYSTEM) return
+        // 四类设备页临时放行导航限制；回到本应用任一页面即结束（R27、R29）。
+        val control = SurfaceRuntime.get(context).systemControl
+        if (item.devicePage != null) control.beginHandoff()
+        if (!context.openSystemSettings(item.systemActions)) {
+            control.endHandoff()
             Toast.makeText(context, R.string.public_settings_open_failed, Toast.LENGTH_SHORT).show()
         }
     }

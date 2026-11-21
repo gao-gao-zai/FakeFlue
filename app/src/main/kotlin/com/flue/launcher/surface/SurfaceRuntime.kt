@@ -105,6 +105,21 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * 导航限制、设备系统页放行和异常恢复（R27、R29、R30）。守护放弃恢复时打开的外部桌面：
+     * 优先用户选定且仍有效的外部桌面，否则第一个候选。
+     */
+    val systemControl = com.flue.launcher.surface.system.SystemControl(
+        app = app,
+        controller = controller,
+        stateStore = stateStore,
+        scope = scope,
+        fallbackHome = {
+            controller.externalTarget?.takeIf(effects::isLaunchableHome)
+                ?: SurfaceHome.externalHomeCandidates(app).firstOrNull()?.flattenToString()
+        },
+    )
+
     /** 伪装配置里一个逗号分隔集合键的当前值：完整／外部模式为 null，伪装模式冷启动先按空集合。 */
     private fun disguiseSet(key: String): StateFlow<Set<String>?> =
         combine(app.dataStore.data, controller.configScope) { prefs, configScope ->
@@ -259,7 +274,10 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     private val interruptionReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_SCREEN_OFF) onInterrupted()
+            if (intent.action == Intent.ACTION_SCREEN_OFF) {
+                onInterrupted()
+                systemControl.endHandoff()
+            }
         }
     }
 
@@ -371,6 +389,7 @@ class SurfaceRuntime private constructor(private val app: Application) {
         fun install(app: Application): SurfaceRuntime {
             val runtime = get(app)
             runtime.activityGuard.attach(app, runtime.controller)
+            runtime.systemControl.attach()
             return runtime
         }
 
@@ -403,7 +422,7 @@ private class AndroidModeSwitchEffects(
     }
 
     override fun onLeftRestrictedMode() {
-        // P5：解除伪装专属系统限制。
+        // 导航限制由 SystemControl 跟随模式解除（R29）。
     }
 
     override fun ownPackageName(): String = app.packageName
