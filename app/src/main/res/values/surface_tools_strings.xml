@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FFlue 内置工具（R31）：电池、闹钟、计时器、秒表、计算器。 -->
+<resources>
+    <string name="surface_tool_battery_title">电池</string>
+    <string name="surface_tool_alarm_title">闹钟</string>
+    <string name="surface_tool_timer_title">计时器</string>
+    <string name="surface_tool_stopwatch_title">秒表</string>
+    <string name="surface_tool_calculator_title">计算器</string>
+
+    <string name="surface_tool_start">开始</string>
+    <string name="surface_tool_pause">暂停</string>
+    <string name="surface_tool_resume">继续</string>
+    <string name="surface_tool_cancel">取消</string>
+    <string name="surface_tool_restart">再来一次</string>
+    <string name="surface_tool_reset">复位</string>
+    <string name="surface_tool_dismiss">关闭</string>
+    <string name="surface_tool_save">保存</string>
+    <string name="surface_tool_delete">删除</string>
+    <string name="surface_tool_today">今天</string>
+    <string name="surface_tool_tomorrow">明天</string>
+    <string name="surface_tool_unit_hours">时</string>
+    <string name="surface_tool_unit_minutes">分</string>
+    <string name="surface_tool_unit_seconds">秒</string>
+    <string name="surface_tool_decrease">减少%1$s</string>
+    <string name="surface_tool_increase">增加%1$s</string>
+    <string name="surface_tool_late_suffix">（未准时提醒）</string>
+
+    <string name="surface_tool_channel_ring">闹钟与计时器响铃</string>
+    <string name="surface_tool_channel_ring_desc">闹钟、计时器到点时响铃并振动</string>
+    <string name="surface_tool_channel_missed">错过的闹钟</string>
+
+    <string name="surface_tool_notice_no_notify_title">到点无法通知</string>
+    <string name="surface_tool_notice_no_notify_full">系统未允许 FFlue 发送通知，闹钟和计时器到点时不会响铃。点按去允许。</string>
+    <string name="surface_tool_notice_no_notify_public">系统当前不显示本应用的通知，到点不会响铃；只有本页开着时会显示时间到。</string>
+    <string name="surface_tool_notice_inexact_title">提醒可能延后</string>
+    <string name="surface_tool_notice_inexact_full">系统未允许精确定时，到点提醒可能被推迟几分钟。点按去允许。</string>
+    <string name="surface_tool_notice_inexact_public">系统可能推迟到点提醒，实际响起可能晚几分钟。</string>
+
+    <string name="surface_tool_battery_absent">未检测到电池</string>
+    <string name="surface_tool_battery_status">充电状态</string>
+    <string name="surface_tool_battery_plugged">电源</string>
+    <string name="surface_tool_battery_full_in">充满还需</string>
+    <string name="surface_tool_battery_hours_minutes">%1$d 小时 %2$d 分钟</string>
+    <string name="surface_tool_battery_health">健康状况</string>
+    <string name="surface_tool_battery_temperature">温度</string>
+    <string name="surface_tool_battery_voltage">电压</string>
+    <string name="surface_tool_battery_technology">电池技术</string>
+    <string name="surface_tool_battery_note">数据由系统实时提供，读不到的项目显示“未知”。</string>
+    <string name="surface_tool_battery_plug_none">电池供电</string>
+    <string name="surface_tool_battery_plug_ac">交流电源</string>
+    <string name="surface_tool_battery_plug_usb">USB</string>
+    <string name="surface_tool_battery_plug_wireless">无线充电</string>
+    <string name="surface_tool_battery_plug_dock">底座</string>
+    <string name="surface_tool_battery_health_good">良好</string>
+    <string name="surface_tool_battery_health_overheat">过热</string>
+    <string name="surface_tool_battery_health_dead">已损坏</string>
+    <string name="surface_tool_battery_health_over_voltage">电压过高</string>
+    <string name="surface_tool_battery_health_failure">故障</string>
+    <string name="surface_tool_battery_health_cold">温度过低</string>
+
+    <string name="surface_tool_timer_state_idle">设定时长</string>
+    <string name="surface_tool_timer_state_running">正在计时</string>
+    <string name="surface_tool_timer_state_paused">已暂停</string>
+    <string name="surface_tool_timer_state_fired">时间到</string>
+    <string name="surface_tool_timer_preset">%1$d 分钟</string>
+    <string name="surface_tool_timer_estimated">设备重启过，剩余时间按系统时间估算。</string>
+    <string name="surface_tool_timer_late">这次提醒没有准时：设备关机、应用被停止或系统推迟了提醒。</string>
+    <string name="surface_tool_timer_notify_title">计时结束</string>
+    <string name="surface_tool_timer_notify_text">已到 %1$s</string>
+
+    <string name="surface_tool_stopwatch_ready">点按开始</string>
+    <string name="surface_tool_stopwatch_reboot_reset">设备重启过，关机期间无法准确计时，运行中的秒表已清零。</string>
+    <string name="surface_tool_lap">计次</string>
+    <string name="surface_tool_laps">计次记录</string>
+    <string name="surface_tool_lap_n">计次 %1$d</string>
+
+    <string name="surface_tool_alarm_add">新建闹钟</string>
+    <string name="surface_tool_alarm_edit">编辑闹钟</string>
+    <string name="surface_tool_alarm_empty">还没有闹钟。</string>
+    <string name="surface_tool_alarm_ringing">正在响铃</string>
+    <string name="surface_tool_alarm_off">已关闭</string>
+    <string name="surface_tool_alarm_next">下次 %1$s</string>
+    <string name="surface_tool_alarm_once">仅一次</string>
+    <string name="surface_tool_alarm_daily">每天</string>
+    <string name="surface_tool_alarm_workdays">工作日</string>
+    <string name="surface_tool_alarm_notify_title">闹钟</string>
+    <string name="surface_tool_alarm_missed_title">错过的闹钟</string>
+    <string name="surface_tool_alarm_missed_text">%1$s 的闹钟在设备关机或提醒被推迟时错过了</string>
+
+    <string name="surface_tool_calc_clear">清除</string>
+    <string name="surface_tool_calc_negate">正负号</string>
+    <string name="surface_tool_calc_backspace">退格</string>
+    <string name="surface_tool_calc_error_syntax">算式不完整</string>
+    <string name="surface_tool_calc_error_divide">不能除以 0</string>
+    <string name="surface_tool_calc_error_overflow">数值超出范围</string>
+
+    <string name="surface_tool_perm_notifications">发送通知（闹钟、计时器响铃）</string>
+    <string name="surface_tool_perm_exact_alarm">精确定时（准点提醒）</string>
+</resources>

@@ -11,6 +11,10 @@ enum class PermissionItem(val group: PermissionGroup) {
     WRITE_SETTINGS(PermissionGroup.SYSTEM_CONTROL),
     NOTIFICATION_LISTENER(PermissionGroup.NOTIFICATIONS),
     DND_ACCESS(PermissionGroup.NOTIFICATIONS),
+    /** R31：闹钟、计时器到点通知。 */
+    POST_NOTIFICATIONS(PermissionGroup.NOTIFICATIONS),
+    /** R31：准点提醒（Android 12+）。 */
+    EXACT_ALARM(PermissionGroup.NOTIFICATIONS),
     LOCATION(PermissionGroup.FACE_DATA),
     CALENDAR(PermissionGroup.FACE_DATA),
     ACTIVITY(PermissionGroup.FACE_DATA),

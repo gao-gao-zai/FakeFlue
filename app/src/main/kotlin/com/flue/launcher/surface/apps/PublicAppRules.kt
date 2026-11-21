@@ -15,9 +15,12 @@ object PublicAppRules {
 
     fun serialize(entries: Set<String>): String = entries.filter(String::isNotBlank).sorted().joinToString(",")
 
-    /** 应用列表条目是否公开：内置入口总是公开；否则 componentKey 或包名在白名单里。 */
+    /**
+     * 应用列表条目是否公开：内置入口（内置设置、R31 内置工具）总是公开；否则 componentKey 或包名在白名单里。
+     */
     fun isPublic(componentKey: String, packageName: String, builtIn: Boolean, whitelist: Set<String>): Boolean =
-        builtIn || componentKey in whitelist || packageName in whitelist
+        builtIn || com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolComponentKey(componentKey) ||
+            componentKey in whitelist || packageName in whitelist
 
     /**
      * 按包名判断是否允许展示或启动（通知、表盘点击动作等只知道包名的入口）。

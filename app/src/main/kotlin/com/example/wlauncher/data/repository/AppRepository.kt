@@ -626,7 +626,11 @@ class AppRepository(private val context: Context) {
                 false
             }
         }
-        if (appInfo.packageName == context.packageName) return false
+        if (appInfo.packageName == context.packageName &&
+            !com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolActivity(appInfo.packageName, appInfo.activityName)
+        ) {
+            return false
+        }
         val intent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
             component = ComponentName(appInfo.packageName, appInfo.activityName)
