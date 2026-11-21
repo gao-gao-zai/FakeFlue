@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -104,7 +105,8 @@ class HiddenDrawerActivity : FlueComponentActivity() {
             val uiStyle by vm.uiStyle.collectAsStateWithLifecycle()
             val globalUiScalePercent by vm.globalUiScalePercent.collectAsStateWithLifecycle()
             val screenShape by vm.screenShapeOverride.collectAsStateWithLifecycle()
-            val apps by repository.allApps.collectAsStateWithLifecycle()
+            // allApps 只含顶层条目，文件夹里的应用不在里面；这里要每个已安装应用。
+            val apps by repository.allSelectableApps.collectAsStateWithLifecycle()
             WatchLauncherTheme(themeMode = themeMode, uiStyle = uiStyle, screenShape = screenShape) {
                 ProvideGlobalUiScale(globalUiScalePercent) {
                     HiddenDrawerPage(
@@ -173,6 +175,8 @@ private fun HiddenDrawerPage(apps: List<AppInfo>, onBack: () -> Unit, onLaunch: 
         HiddenDrawerCatalog.arrange(candidates, query, pinned, collator::compare)
     }
     var jumpTarget by remember { mutableStateOf<Int?>(null) }
+    // 系统返回键／返回手势也回表盘，和页头返回、右滑一致。
+    BackHandler(onBack = onBack)
 
     fun togglePin(key: String) {
         val next = HiddenDrawerCatalog.togglePin(pinned, key)

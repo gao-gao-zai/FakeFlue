@@ -60,6 +60,9 @@ class OverridesDrawerEntriesTest {
     fun labelsNormalizedAndCapped() {
         assertNull(PublicAppOverrides.normalizeLabel("\t \n"))
         assertEquals("a b", PublicAppOverrides.normalizeLabel(" a\r\nb "))
+        // 普通字母 r、n、t 和反斜杠不受影响，只合并真正的回车、换行、制表符。
+        assertEquals("Internet", PublicAppOverrides.normalizeLabel("Internet"))
+        assertEquals("a\\b x", PublicAppOverrides.normalizeLabel("a\\b\tx"))
         assertEquals(PublicAppOverrides.MAX_LABEL_LENGTH, PublicAppOverrides.normalizeLabel("x".repeat(99))!!.length)
     }
 
