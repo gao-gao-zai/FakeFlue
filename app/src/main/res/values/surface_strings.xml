@@ -75,4 +75,16 @@
     <string name="display_input_invalid">范围 %1$s</string>
     <string name="search_d_screen_fit">安全区、应用 DPI、圆屏边距</string>
     <string name="surface_screen_fit_entry_sub">安全区与应用 DPI，完整和伪装桌面共用</string>
+    <string name="surface_public_apps_title">公开应用</string>
+    <string name="surface_public_apps_entry_sub">已选 %1$d 个。伪装桌面只显示内置应用和这些应用</string>
+    <string name="surface_public_apps_subtitle">伪装桌面显示内置应用和这里选中的应用，新安装的应用默认不公开</string>
+    <string name="surface_public_apps_search">搜索名称、首字母或包名</string>
+    <string name="surface_public_apps_search_scope_full">可按名称、拼音或首字母、包名搜索</string>
+    <string name="surface_public_apps_search_scope_basic">此系统版本不支持汉字转拼音：可按名称、英文首字母和包名搜索</string>
+    <string name="surface_public_apps_sort_desktop">桌面顺序</string>
+    <string name="surface_public_apps_sort_name">名称 A–Z</string>
+    <string name="surface_public_apps_sort_selected">已选优先</string>
+    <string name="surface_public_apps_count">已选 %1$d / %2$d</string>
+    <string name="surface_public_apps_empty">没有匹配的应用</string>
+    <string name="surface_feature_unavailable">当前模式不可用</string>
 </resources>

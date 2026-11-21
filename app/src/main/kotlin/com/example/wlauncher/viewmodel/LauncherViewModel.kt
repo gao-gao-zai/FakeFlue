@@ -261,6 +261,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val KEY_WATCHFACE_DATE_LOCALE = stringPreferencesKey("watchface_date_locale")
         val KEY_DEVICE_PRESET_APPLIED = booleanPreferencesKey("device_preset_applied")
         val KEY_HIDDEN_APPS = stringPreferencesKey("hidden_apps")
+        /** R10 伪装模式公开应用白名单；读写在 [com.flue.launcher.surface.SurfaceRuntime]，这里登记以便分类检查。 */
+        val KEY_PUBLIC_APPS = stringPreferencesKey(com.flue.launcher.surface.apps.PublicAppRules.KEY)
         val KEY_ICON_PACK_PACKAGE = stringPreferencesKey("icon_pack_package")
         val KEY_SELECTED_WATCHFACE_ID = stringPreferencesKey("selected_watchface_id")
         val KEY_LAST_WATCHFACE_ERROR = stringPreferencesKey("last_watchface_error")
@@ -338,11 +340,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private val store = application.launcherSettings // R06：按当前模式投影
+    private val surfaceRuntime = com.flue.launcher.surface.SurfaceRuntime.get(application)
     private val repositories = FlueApplication.repositories(application)
     private val appRepository = repositories.appRepository
 
-    val allApps: StateFlow<List<AppInfo>> = appRepository.allApps
-    val allSelectableApps: StateFlow<List<AppInfo>> = appRepository.allSelectableApps
+    // R10：伪装模式下这两份也只含公开应用（文件夹编辑、侧屏快捷项、小组件页）。
+    val allApps: StateFlow<List<AppInfo>> = appRepository.modeAllApps
+    val allSelectableApps: StateFlow<List<AppInfo>> = appRepository.modeAllSelectableApps
+    /** 全部已安装条目，不经任何筛选；只给公开应用选择器使用。 */
+    val catalogApps: StateFlow<List<AppInfo>> = appRepository.allSelectableApps
     val apps: StateFlow<List<AppInfo>> = appRepository.apps
     private val _openFolder = MutableStateFlow<AppInfo?>(null)
     val openFolder: StateFlow<AppInfo?> = _openFolder.asStateFlow()
@@ -846,7 +852,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var appOrderWriteJob: Job? = null
     private var pendingNotificationClearJob: Job? = null
     private var refreshIconsJob: Job? = null
+    /** 伪装模式熄屏回表盘（R08）。AodController 只在启用息屏显示时才注册熄屏监听，这里单独收。 */
+    private val screenOffReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) onScreenOff()
+        }
+    }
+
+    private fun onScreenOff() {
+        val target = com.flue.launcher.surface.mode.DisguiseScreenOff.targetState(
+            surfaceRuntime.controller.configScope.value,
+            _screenState.value,
+        ) ?: return
+        closeFolder()
+        setState(target)
+    }
+
     init {
+        runCatching {
+            androidx.core.content.ContextCompat.registerReceiver(
+                application,
+                screenOffReceiver,
+                android.content.IntentFilter(Intent.ACTION_SCREEN_OFF),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }
+        viewModelScope.launch {
+            // 白名单变化后让通知监听重读，放宽时新公开的通知也能出现（监听侧按白名单截取前 20 条）。
+            // 不跳过首个值：冷启动时监听可能已按“设置未读出”的空白名单读过一次。
+            surfaceRuntime.publicApps.collect { whitelist ->
+                // 仓库在应用级作用域里也收这份白名单，先在这里同步应用一次（同值时是空操作），
+                // 保证下面读到的是新的筛选结果，而不是取决于两个收集者谁先执行。
+                appRepository.setPublicWhitelist(whitelist)
+                refreshOpenFolderVisibility()
+                WLauncherNotificationListener.refreshIfConnected()
+            }
+        }
         viewModelScope.launch {
             FlueAccessibilityService.lastExternalForegroundEvidence.collect { evidence ->
                 evidence ?: return@collect
@@ -860,9 +901,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 WLauncherNotificationListener.notifications,
                 _expandedNotificationGroups,
                 _pendingDismissedNotificationKeys,
-                _showOngoingNotifications
-            ) { notifications, expandedPackages, pendingDismissedKeys, showOngoing ->
-                val visibleNotifications = notifications.filter { shouldShowNotification(it, showOngoing) }
+                _showOngoingNotifications,
+                surfaceRuntime.publicApps
+            ) { notifications, expandedPackages, pendingDismissedKeys, showOngoing, publicApps ->
+                val ownPackage = getApplication<Application>().packageName
+                val visibleNotifications = notifications.filter {
+                    shouldShowNotification(it, showOngoing) &&
+                        com.flue.launcher.surface.apps.PublicAppRules.isPackagePublic(it.packageName, publicApps, ownPackage)
+                }
                 val filteredNotifications = visibleNotifications.filterNot { it.key in pendingDismissedKeys }
                 val activeNotificationKeys = notifications.asSequence().map { it.key }.toSet()
                 Triple(
@@ -1614,6 +1660,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             openFolder(appInfo)
             return
         }
+        // R10：伪装模式只启动公开应用；旧的快捷项、侧屏条目等残留入口也在这里挡住。
+        val publicApps = surfaceRuntime.publicApps.value
+        if (publicApps != null && !com.flue.launcher.surface.apps.PublicAppRules.isPublic(
+                appInfo.componentKey, appInfo.packageName, appInfo.isBuiltInSettingsEntry, publicApps,
+            )
+        ) {
+            return
+        }
         if (!appInfo.isAppListShortcut && appInfo.packageName == getApplication<Application>().packageName) {
             Toast.makeText(getApplication(), "已阻止启动自身应用", Toast.LENGTH_SHORT).show()
             return
@@ -2058,12 +2112,37 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _openFolderItems.value = appRepository.folderItems(folder.componentKey)
     }
 
+    /** 白名单变化后按新规则刷新已打开的文件夹，不再显示已不公开的应用（R10）。 */
+    private fun refreshOpenFolderVisibility() {
+        val folder = _openFolder.value ?: return
+        val update = com.flue.launcher.surface.apps.OpenFolderVisibility.update(
+            visibleFolder = apps.value.firstOrNull { it.componentKey == folder.componentKey },
+            visibleItems = appRepository.folderItems(folder.componentKey),
+        )
+        when (update) {
+            com.flue.launcher.surface.apps.OpenFolderVisibility.Update.Close -> closeFolder()
+            is com.flue.launcher.surface.apps.OpenFolderVisibility.Update.Show -> {
+                _openFolder.value = update.folder
+                _openFolderItems.value = update.items
+            }
+        }
+    }
+
     fun closeFolder() {
         _openFolder.value = null
         _openFolderItems.value = emptyList()
     }
 
+    /**
+     * 文件夹和应用列表快捷方式的存储不分模式（`app_list_items`）。伪装模式只展示其中的公开部分，
+     * 在这里改结构会改掉完整模式的文件夹并丢掉未公开的子项（R10：不顺便修改正式桌面），所以只读。
+     */
+    private fun appListStructureLocked(): Boolean =
+        com.flue.launcher.surface.SurfaceRuntime.get(getApplication()).controller.configScope.value ==
+            com.flue.launcher.surface.mode.ConfigScope.DISGUISE
+
     fun createFolder(command: AppListCommand.CreateFolder): String? {
+        if (appListStructureLocked()) return null
         if (command.source == command.target) return null
         val current = apps.value
         if (current.map(AppInfo::componentKey).distinct().size != current.size) return null
@@ -2084,7 +2163,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun removeAppListShortcut(shortcut: AppInfo) {
-        if (!shortcut.isAppListShortcut) return
+        if (!shortcut.isAppListShortcut || appListStructureLocked()) return
         if (appRepository.removeShortcut(shortcut.componentKey)) {
             setAppOrder(_appOrder.value.filterNot { it == shortcut.componentKey })
             closeFolder()
@@ -2092,7 +2171,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun renameFolder(folder: AppInfo, name: String) {
-        if (!folder.isFolder) return
+        if (!folder.isFolder || appListStructureLocked()) return
         if (appRepository.renameFolder(folder.componentKey, name)) {
             val renamed = folder.copy(
                 label = name.ifBlank { getApplication<Application>().getString(R.string.app_list_folder_default_name) },
@@ -2102,7 +2181,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun reorderFolderItems(folder: AppInfo, orderedItems: List<AppInfo>) {
-        if (!folder.isFolder) return
+        if (!folder.isFolder || appListStructureLocked()) return
         val mutation = appRepository.reorderFolderItems(
             folder.componentKey,
             orderedItems.map { it.componentKey }
@@ -2113,7 +2192,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun dissolveFolder(folder: AppInfo) {
-        if (!folder.isFolder) return
+        if (!folder.isFolder || appListStructureLocked()) return
         val childKeys = appRepository.dissolveFolder(folder.componentKey)
         if (childKeys.isEmpty()) return
         val currentOrder = apps.value.map { it.componentKey }.toMutableList()
@@ -2125,7 +2204,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun moveItemOutOfFolder(folder: AppInfo, item: AppInfo) {
-        if (!folder.isFolder) return
+        if (!folder.isFolder || appListStructureLocked()) return
         // Capture the authoritative pre-mutation position. The repository now
         // publishes the moved item synchronously so the closing overlay cannot
         // reveal the stale folder preview underneath; reading apps afterwards
@@ -2160,7 +2239,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addItemsToFolder(folder: AppInfo, items: List<AppInfo>) {
-        if (!folder.isFolder || items.isEmpty()) return
+        if (!folder.isFolder || items.isEmpty() || appListStructureLocked()) return
         val addedKeys = items
             .asSequence()
             .filterNot { it.isFolder }
@@ -2193,7 +2272,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setFolderItems(folder: AppInfo, items: List<AppInfo>) {
-        if (!folder.isFolder) return
+        if (!folder.isFolder || appListStructureLocked()) return
         val originalKeys = appRepository.folderItemKeys(folder.componentKey)
         val folderSnapshot = appRepository.folderMembershipSnapshot()
         val selectedKeys = items
@@ -3298,7 +3377,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     suspend fun importBackup(uri: Uri, options: FlueBackupOptions): Result<Unit> {
         return runCatching {
-            val availableAppKeys = allApps.value.ifEmpty { apps.value }.map { it.componentKey }.toSet()
+            // 备份校验用未经模式筛选的已安装条目：导入直接写物理配置，伪装模式下用公开列表
+            // 校验会把已安装但未公开的应用从完整桌面的排序、隐藏和侧屏快捷项里删掉（R10）。
+            val availableAppKeys = appRepository.allApps.value
+                .ifEmpty { appRepository.allSelectableApps.value }
+                .map { it.componentKey }
+                .toSet()
             withContext(Dispatchers.IO) {
                 FlueBackupManager.importBackup(
                     context = getApplication(),
@@ -4445,6 +4529,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     override fun onCleared() {
+        runCatching { getApplication<Application>().unregisterReceiver(screenOffReceiver) }
         launchJob?.cancel()
         cancelPendingReturnResolution()
         refreshIconsJob?.cancel()

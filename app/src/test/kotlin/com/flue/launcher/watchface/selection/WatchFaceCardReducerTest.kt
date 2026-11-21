@@ -70,4 +70,20 @@ class WatchFaceCardReducerTest {
 
         assertEquals("jbwatch:one", result.focusedStableId)
     }
+
+    @Test
+    fun `disguise mode has no store card and never focuses it`() {
+        val items = WatchFaceCardReducer.items(faces, includeStore = false)
+
+        assertEquals(faces, items.map { it.stableId })
+        assertFalse(items.any { it.isStore })
+        val result = WatchFaceCardReducer.afterDelete(
+            state = WatchFaceCardState("builtin", "jbwatch:one"),
+            deletedStableId = "jbwatch:one",
+            previousItems = items,
+            remainingFaceIds = emptyList(),
+            includeStore = false,
+        )
+        assertEquals(BUILT_IN_WATCHFACE_ID, result.focusedStableId)
+    }
 }

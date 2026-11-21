@@ -68,6 +68,11 @@ class WLauncherNotificationListener : NotificationListenerService() {
 
         fun isConnected() = instance != null
 
+        /** 公开应用白名单变了（R11）：按新规则重读当前通知。 */
+        fun refreshIfConnected() {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { instance?.refreshNotifications() }
+        }
+
         fun requestRebindIfNeeded(context: Context) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || instance != null) return
             runCatching {
@@ -149,10 +154,12 @@ class WLauncherNotificationListener : NotificationListenerService() {
             }
             .getOrDefault(emptyArray())
         val pm = applicationContext.packageManager
+        // R11：伪装模式下未公开应用的通知不进通知层，也不计入表盘的通知数。
+        val surface = com.flue.launcher.surface.SurfaceRuntime.get(applicationContext)
         val visible = sbns.filter { sbn ->
             val flags = sbn.notification.flags
             val isGroupSummary = flags and Notification.FLAG_GROUP_SUMMARY != 0
-            !isGroupSummary
+            !isGroupSummary && surface.isPackagePublic(sbn.packageName)
         }
         // 表盘 {cnc} 要的是真实条数，所以用 take(20) **之前**的数量：那个上限是
         // 通知层 UI 的显示预算，不是「用户有多少条通知」。

@@ -40,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -120,7 +121,14 @@ fun WatchFaceCardSelector(
     val style = LauncherTheme.style
     val scope = rememberCoroutineScope()
     val latestOnDismiss by rememberUpdatedState(onDismiss)
-    val items = remember(watchFaces) { WatchFaceCardReducer.items(watchFaces.map { it.id }) }
+    val surfaceMode by remember(context) {
+        com.flue.launcher.surface.SurfaceRuntime.get(context).controller.mode
+    }.collectAsState()
+    val includeStore = com.flue.launcher.surface.access.FeatureAccessPolicy.isAllowed(
+        surfaceMode,
+        com.flue.launcher.surface.access.SurfaceFeature.WATCH_STORE,
+    )
+    val items = remember(watchFaces, includeStore) { WatchFaceCardReducer.items(watchFaces.map { it.id }, includeStore) }
     val byId = remember(watchFaces) { watchFaces.associateBy { it.id } }
     var focusedStableId by rememberSaveable(selectedWatchFaceId) { mutableStateOf(selectedWatchFaceId) }
     var deleteTarget by remember { mutableStateOf<WatchFaceDescriptor?>(null) }
@@ -303,7 +311,7 @@ fun WatchFaceCardSelector(
                         if (!centered) {
                             scope.launch { pagerState.animateScrollToPage(page) }
                         } else if (item.isStore) {
-                            context.startActivity(Intent(context, WatchStoreActivity::class.java))
+                            if (includeStore) context.startActivity(Intent(context, WatchStoreActivity::class.java))
                         } else {
                             vm.selectWatchFace(item.stableId)
                             requestClose()
@@ -442,6 +450,7 @@ fun WatchFaceCardSelector(
                                 deletedStableId = deletedId,
                                 previousItems = previousItems,
                                 remainingFaceIds = remainingIds,
+                                includeStore = includeStore,
                             ).focusedStableId
                         }
                         .onFailure { error ->
