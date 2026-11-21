@@ -42,12 +42,11 @@ class FlueApplication : Application() {
         // source through this one application-owned repository. Its cached
         // snapshot and temperature-unit preference therefore survive host
         // recreation and remain identical across those surfaces.
-        // R35：仓库首次建立要读偏好、把缓存的天气 JSON 解析两遍，挪到后台先建；表盘第一次取天气时
-        // 若还没建好才同步等它（default() 加锁），取到的始终是同一个仓库。
-        val app = this
-        WatchWeatherSources.applicationSource =
-            com.flue.launcher.watchface.standard.WatchWeatherSource { now -> WatchWeatherRepository.default(app).snapshot(now) }
-        repositories.applicationScope.launch { WatchWeatherRepository.default(app) }
+        // R35：仓库首次建立放在后台，发布实际仓库以保留位置标签与主动刷新能力。
+        // 表盘先访问时沿用默认仓库回退；default() 加锁，两条路径取得同一个实例。
+        repositories.applicationScope.launch {
+            WatchWeatherSources.applicationSource = WatchWeatherRepository.default(this@FlueApplication)
+        }
         // 最近任务可见性偏好在多个 Activity 的 onCreate/onResume 同步读取；
         // 在后台先把 DataStore 首读做完，主线程读方就只剩内存取值。
         repositories.applicationScope.launch {

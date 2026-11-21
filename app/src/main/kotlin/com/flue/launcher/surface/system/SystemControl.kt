@@ -110,7 +110,10 @@ class SystemControl(
 
     /** 完整设置里的“重新连接”。 */
     fun retry() {
-        scope.launch(serial) { guard.retry() }
+        scope.launch(serial) {
+            guard.retry()
+            reportStartup(guard.status.value)
+        }
     }
 
     fun recoveryRecords(): List<RecoveryRecord> =
