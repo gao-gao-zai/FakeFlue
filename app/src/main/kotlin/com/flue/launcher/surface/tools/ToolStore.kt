@@ -25,10 +25,38 @@ class ToolStore(context: Context) {
     fun loadTimer(): TimerState = runCatching { prefs.getString(KEY_TIMER, null)?.let { timerFrom(JSONObject(it)) } }
         .getOrNull() ?: TimerState.Idle()
 
-    fun loadAlarms(): List<Alarm> = runCatching {
-        val array = JSONArray(prefs.getString(KEY_ALARMS, "[]"))
-        (0 until array.length()).mapNotNull { runCatching { alarmFrom(array.getJSONObject(it)) }.getOrNull() }
-    }.getOrDefault(emptyList())
+    /**
+     * 读不出的闹钟列表（整体损坏或个别条目损坏）仍按「没有」处理以免崩溃，但先把原始值
+     * 原样复制到 [unreadableAlarmsKey] 下（R37）：否则下一次保存就会把用户的闹钟永久覆盖掉。
+     * 同一份原始值只复制一次。
+     */
+    fun loadAlarms(): List<Alarm> {
+        val raw = prefs.getString(KEY_ALARMS, null) ?: return emptyList()
+        var lossy = false
+        val alarms = runCatching {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { index ->
+                runCatching { alarmFrom(array.getJSONObject(index)) }.getOrNull().also { if (it == null) lossy = true }
+            }
+        }.getOrElse {
+            lossy = true
+            emptyList()
+        }
+        if (lossy) preserveUnreadable(KEY_ALARMS, raw)
+        return alarms
+    }
+
+    /** 已保留下来的读不出的闹钟原始值（供诊断 / 人工恢复）。 */
+    fun unreadableAlarmBackups(): List<String> = prefs.all
+        .filterKeys { it.startsWith(unreadablePrefix(KEY_ALARMS)) }
+        .values
+        .filterIsInstance<String>()
+
+    private fun preserveUnreadable(key: String, raw: String) {
+        val backupKey = unreadablePrefix(key) + sha256Prefix(raw)
+        if (prefs.contains(backupKey)) return
+        prefs.edit().putString(backupKey, raw).commit()
+    }
 
     fun loadStopwatch(): StopwatchState = runCatching {
         prefs.getString(KEY_STOPWATCH, null)?.let { stopwatchFrom(JSONObject(it)) }
@@ -69,6 +97,13 @@ class ToolStore(context: Context) {
         private const val KEY_STOPWATCH = "stopwatch"
         private const val KEY_RINGING = "ringing_alarms"
         private const val KEY_RUN_ID = "timer_run_id"
+
+        internal fun unreadablePrefix(key: String) = "$key.unreadable."
+
+        private fun sha256Prefix(raw: String): String = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(raw.toByteArray(Charsets.UTF_8))
+            .take(8)
+            .joinToString("") { "%02x".format(it) }
 
         private fun JSONObject.optLongOrNull(name: String): Long? = if (has(name) && !isNull(name)) getLong(name) else null
         private fun JSONObject.optIntOrNull(name: String): Int? = if (has(name) && !isNull(name)) getInt(name) else null

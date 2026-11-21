@@ -19,7 +19,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.flue.launcher.FlueApplication
@@ -127,7 +126,8 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.ZipFile
 import kotlin.math.roundToInt
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "launcher_settings")
+// R37：损坏的设置文件先原样备份再以空配置启动，不再每次读取都崩；路径与原 preferencesDataStore 相同。
+val Context.dataStore: DataStore<Preferences> by com.flue.launcher.data.CorruptionPreservingPreferencesDelegate("launcher_settings")
 
 private const val EXTERNAL_LAUNCH_BACKGROUND_TIMEOUT_MS = 1_500L
 private const val APP_ORDER_WRITE_DEBOUNCE_MS = 120L
@@ -3525,14 +3525,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    suspend fun importBackup(uri: Uri, options: FlueBackupOptions): Result<Unit> {
+    suspend fun importBackup(uri: Uri, options: FlueBackupOptions): Result<com.flue.launcher.backup.FlueBackupImportResult> {
         return runCatching {
             // 备份校验用未经模式筛选的已安装条目：导入直接写物理配置，伪装模式下用公开列表
             // 校验会把已安装但未公开的应用从完整桌面的排序、隐藏和侧屏快捷项里删掉（R10）。
+            // R37：应用列表尚未加载完时为空集合，拿它过滤会清掉排序、隐藏应用和侧屏快捷项。
+            // 为空时传 null 表示「未知」，导入按备份原样写回，不做过滤。
             val availableAppKeys = appRepository.allApps.value
                 .ifEmpty { appRepository.allSelectableApps.value }
                 .map { it.componentKey }
                 .toSet()
+                .takeIf { it.isNotEmpty() }
             withContext(Dispatchers.IO) {
                 FlueBackupManager.importBackup(
                     context = getApplication(),
@@ -3541,10 +3544,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     availableAppKeys = availableAppKeys,
                     widgetRepository = repositories.widgetRepository
                 )
+            }.also {
+                refreshWatchFaces(force = true)
+                refreshIconPacks()
+                requestWatchFaceRefresh()
             }
-            refreshWatchFaces(force = true)
-            refreshIconPacks()
-            requestWatchFaceRefresh()
         }
     }
 

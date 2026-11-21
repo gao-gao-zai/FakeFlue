@@ -181,6 +181,7 @@ import com.flue.launcher.logging.FlueLog
 import com.flue.launcher.backup.FlueBackupExportSummary
 import com.flue.launcher.backup.FlueBackupOptions
 import com.flue.launcher.backup.FlueBackupPreview
+import com.flue.launcher.backup.FlueBackupResultText
 import com.flue.launcher.service.FlueAccessibilityService
 import com.flue.launcher.service.FlueDeviceAdminController
 import com.flue.launcher.service.ScreenLockControlMode
@@ -423,7 +424,9 @@ private data class BlockingProgressState(
     val detail: String? = null,
     val completed: Boolean = false,
     val completionAction: BlockingProgressCompletionAction = BlockingProgressCompletionAction.None,
-    val shareUri: Uri? = null
+    val shareUri: Uri? = null,
+    /** 完成但有失败项（R37：部分导入不能显示成全部成功）。 */
+    val warning: Boolean = false,
 )
 
 private enum class BlockingProgressCompletionAction {
@@ -1053,7 +1056,7 @@ private fun SettingsRootScreen(
                             context,
                             context.getString(
                                 R.string.toast_read_failed_fmt,
-                                error.message ?: error.javaClass.simpleName
+                                FlueBackupResultText.errorMessage(context, error)
                             ),
                             Toast.LENGTH_SHORT
                         ).show()
@@ -5097,15 +5100,31 @@ private fun SettingsRootScreen(
                                     )
                                     val result = vm.importBackup(uri, options)
                                     result
-                                        .onSuccess {
-                                            backupProgress = BlockingProgressState(
-                                                title = context.getString(R.string.progress_import_done),
-                                                detail = options.backupSummaryText(context),
-                                                completed = true,
-                                                completionAction = BlockingProgressCompletionAction.ImportBackup
-                                            )
-                                            backupImportPreview = null
-                                            backupImportUri = null
+                                        .onSuccess { imported ->
+                                            // R37：按实际恢复结果显示；零成功按失败处理，部分失败如实列出。
+                                            if (imported.nothingRestored) {
+                                                backupProgress = null
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(
+                                                        R.string.toast_import_failed_fmt,
+                                                        FlueBackupResultText.nothingRestoredMessage(context, imported)
+                                                    ),
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            } else {
+                                                backupProgress = BlockingProgressState(
+                                                    title = FlueBackupResultText.importTitle(context, imported),
+                                                    detail = FlueBackupResultText.importDetail(context, imported) { key ->
+                                                        context.getString(backupSectionLabelRes(key))
+                                                    },
+                                                    completed = true,
+                                                    completionAction = BlockingProgressCompletionAction.ImportBackup,
+                                                    warning = !imported.isCompleteSuccess
+                                                )
+                                                backupImportPreview = null
+                                                backupImportUri = null
+                                            }
                                         }
                                         .onFailure { error ->
                                             backupProgress = null
@@ -5113,7 +5132,7 @@ private fun SettingsRootScreen(
                                                 context,
                                                 context.getString(
                                                     R.string.toast_import_failed_fmt,
-                                                    error.message ?: error.javaClass.simpleName
+                                                    FlueBackupResultText.errorMessage(context, error)
                                                 ),
                                                 Toast.LENGTH_SHORT
                                             ).show()
@@ -7846,7 +7865,7 @@ private fun BlockingProgressDialog(
                             Icon(
                                 imageVector = OfficialMiuixIcons.OfficialOk,
                                 contentDescription = null,
-                                tint = launcherStyle.accentColor,
+                                tint = if (state.warning) Color(0xFFFFA000) else launcherStyle.accentColor,
                                 modifier = Modifier.size(64.dp)
                             )
                         } else {

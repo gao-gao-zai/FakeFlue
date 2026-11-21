@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R37 backup import and data reliability -->
+<resources>
+    <string name="backup_import_partial_title">Import partly completed</string>
+    <string name="backup_import_nothing_restored">Nothing was restored</string>
+    <string name="backup_import_detail_restored_fmt">Restored: %1$s</string>
+    <string name="backup_import_detail_failed_fmt">Not restored: %1$s</string>
+    <string name="backup_import_detail_watch_faces_fmt">Watch faces: %1$d restored, %2$d failed</string>
+    <string name="backup_import_detail_items_failed_fmt">%1$d more files could not be restored; the existing files were kept</string>
+    <string name="backup_import_detail_skipped_settings_fmt">Skipped %1$d unrecognized settings</string>
+    <string name="backup_error_newer_schema_fmt">This backup was made by a newer app version (format %1$d). Update the app before importing.</string>
+    <string name="backup_error_not_a_backup">Not a valid backup file</string>
+    <string name="backup_error_too_large">The backup is too large or damaged</string>
+    <string name="backup_error_unsafe_entry">The backup contains unsafe or duplicate entries and was rejected</string>
+    <string name="backup_error_no_space">Not enough storage space</string>
+</resources>

@@ -59,6 +59,21 @@ object PublicAppOverrides {
         return json.toString()
     }
 
+    /** 原始存储值非空却不是合法 JSON：[parse] 会把它当成空表，调用方不能据此判断图标已无人引用。 */
+    fun isUnreadable(raw: String?): Boolean =
+        !raw.isNullOrBlank() && runCatching { JSONObject(raw) }.isFailure
+
+    /**
+     * 需要保留的图标：既包括 [overrides] 引用的，也包括出现在读不出的旧值备份 [unreadableBackups]
+     * 里的文件名（旧值解析不了，只能按文本包含判断，宁可多留不误删）。
+     */
+    fun orphanIcons(
+        overrides: Map<String, PublicAppOverride>,
+        files: Collection<String>,
+        unreadableBackups: Collection<String>,
+    ): Set<String> = orphanIcons(overrides, files)
+        .filterTo(HashSet()) { name -> unreadableBackups.none { it.contains(name) } }
+
     /** 去掉首尾空白和换行，空串视为不覆盖，过长截断。 */
     fun normalizeLabel(raw: String?): String? =
         raw?.replace(Regex("[\\r\\n\\t]+"), " ")?.trim()?.take(MAX_LABEL_LENGTH)?.takeIf { it.isNotEmpty() && it != "null" }

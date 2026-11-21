@@ -13,6 +13,8 @@ import android.net.Uri
 import android.os.Build
 import android.webkit.MimeTypeMap
 import androidx.compose.ui.graphics.ImageBitmap
+import com.flue.launcher.data.StagedFiles
+import com.flue.launcher.data.copyToBounded
 import java.io.File
 import java.util.LinkedHashMap
 import kotlin.math.roundToInt
@@ -22,41 +24,51 @@ object InternalWatchFaceStorage {
     private const val VIDEO_DIR = "video"
     private const val FONT_DIR = "font"
 
+    /** 视频表盘源文件上限，与 .watch 归档上限一致。 */
+    internal const val MAX_VIDEO_BYTES = 500L * 1024L * 1024L
+    internal const val MAX_FONT_BYTES = 100L * 1024L * 1024L
+
+    // R37：以下 copy* 都是「先写新文件、校验通过后再删旧文件」。解码失败、字体校验失败、
+    // 超过大小上限或写盘失败时返回 null，目录里原来那份仍在、仍被配置引用。
+
     fun copyPhoto(context: Context, uri: Uri): String? = runCatching {
-        val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$PHOTO_DIR").apply { mkdirs() }
-        root.listFiles()?.forEach { existing ->
-            if (existing.isFile) existing.delete()
-        }
+        val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$PHOTO_DIR")
 
         val metrics = context.resources.displayMetrics
         val targetWidth = metrics.widthPixels.coerceAtLeast(1)
         val targetHeight = metrics.heightPixels.coerceAtLeast(1)
         val croppedBitmap = decodeCroppedPhoto(context, uri, targetWidth, targetHeight) ?: return null
-        val target = File(root, "current_${System.currentTimeMillis()}.png")
-        target.outputStream().use { output ->
-            croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        val target = try {
+            StagedFiles.writeNew(root, "current", "png", write = { output ->
+                check(croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "PNG 编码失败" }
+            })
+        } finally {
+            croppedBitmap.recycle()
         }
-        croppedBitmap.recycle()
+        StagedFiles.pruneExcept(root, listOf(target))
         target.absolutePath
     }.getOrNull()
 
     fun copyVideo(context: Context, uri: Uri): String? = copyMedia(context, uri, VIDEO_DIR, "video")
 
     fun copyFont(context: Context, uri: Uri): String? = runCatching {
-        val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$FONT_DIR").apply { mkdirs() }
-        root.listFiles()?.forEach { existing ->
-            if (existing.isFile) existing.delete()
-        }
+        val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$FONT_DIR")
 
         val extension = resolveExtension(context, uri, "ttf")
             .lowercase()
             .let { if (it in setOf("ttf", "otf", "ttc")) it else "ttf" }
-        val target = File(root, "current_${System.currentTimeMillis()}.$extension")
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
-        } ?: return null
-
-        Typeface.createFromFile(target)
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        val target = input.use { stream ->
+            StagedFiles.writeNew(
+                root,
+                "current",
+                extension,
+                write = { output -> stream.copyToBounded(output, MAX_FONT_BYTES, "字体文件") },
+                // 校验不过的字体不落成正式文件（writeNew 会删掉临时文件）。
+                validate = { file -> Typeface.createFromFile(file) },
+            )
+        }
+        StagedFiles.pruneExcept(root, listOf(target))
         target.absolutePath
     }.getOrNull()
 
@@ -73,16 +85,19 @@ object InternalWatchFaceStorage {
         fallbackExtension: String
     ): String? {
         return runCatching {
-            val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$folderName").apply { mkdirs() }
-            root.listFiles()?.forEach { existing ->
-                if (existing.isFile) existing.delete()
-            }
+            val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$folderName")
 
             val extension = resolveExtension(context, uri, fallbackExtension)
-            val target = File(root, "current_${System.currentTimeMillis()}.$extension")
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
-            } ?: return null
+                .replace(Regex("[^A-Za-z0-9]"), "")
+                .take(8)
+                .ifBlank { fallbackExtension }
+            val input = context.contentResolver.openInputStream(uri) ?: return null
+            val target = input.use { stream ->
+                StagedFiles.writeNew(root, "current", extension, write = { output ->
+                    stream.copyToBounded(output, MAX_VIDEO_BYTES, "视频文件")
+                })
+            }
+            StagedFiles.pruneExcept(root, listOf(target))
             target.absolutePath
         }.getOrNull()
     }

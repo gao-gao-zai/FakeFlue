@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R37 备份导入与数据可靠性 -->
+<resources>
+    <string name="backup_import_partial_title">部分导入完成</string>
+    <string name="backup_import_nothing_restored">没有恢复任何内容</string>
+    <string name="backup_import_detail_restored_fmt">已恢复：%1$s</string>
+    <string name="backup_import_detail_failed_fmt">未恢复：%1$s</string>
+    <string name="backup_import_detail_watch_faces_fmt">表盘：成功 %1$d 个，失败 %2$d 个</string>
+    <string name="backup_import_detail_items_failed_fmt">另有 %1$d 个文件未能恢复，本机原文件已保留</string>
+    <string name="backup_import_detail_skipped_settings_fmt">已跳过 %1$d 项无法识别的设置</string>
+    <string name="backup_error_newer_schema_fmt">此备份来自更新版本的应用（格式 %1$d），请先升级再导入</string>
+    <string name="backup_error_not_a_backup">不是有效的备份文件</string>
+    <string name="backup_error_too_large">备份过大或已损坏</string>
+    <string name="backup_error_unsafe_entry">备份包含不安全或重复的条目，已拒绝导入</string>
+    <string name="backup_error_no_space">存储空间不足</string>
+</resources>

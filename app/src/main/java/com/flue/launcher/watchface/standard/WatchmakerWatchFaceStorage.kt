@@ -2,10 +2,12 @@ package com.flue.launcher.watchface.standard
 
 import android.content.Context
 import android.net.Uri
+import com.flue.launcher.data.DirectorySwap
 import com.flue.launcher.watchface.WatchFaceDescriptor
 import com.flue.launcher.watchface.WatchFaceType
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicBoolean
 
 const val WATCHMAKER_ID_PREFIX = "watchmaker:"
 
@@ -24,6 +26,7 @@ data class WatchmakerWatchFaceScanResult(
 object WatchmakerWatchFaceStorage {
     private const val ROOT_DIRECTORY = "watchmaker_faces"
     private const val MAXIMUM_IMPORT_BYTES = 500L * 1024L * 1024L
+    private val recoveryDone = AtomicBoolean(false)
 
     fun rootDirectory(context: Context): File =
         File(context.filesDir, ROOT_DIRECTORY).apply {
@@ -91,6 +94,7 @@ object WatchmakerWatchFaceStorage {
         val installer = WatchArchiveInstaller()
         val ordered = ArrayList<WatchInstallOrder<WatchFaceDescriptor>>()
         val failures = ArrayList<WatchmakerWatchFaceScanFailure>()
+        recoverInterruptedTransactions(rootDirectory(context))
         rootDirectory(context)
             .listFiles()
             .orEmpty()
@@ -123,6 +127,20 @@ object WatchmakerWatchFaceStorage {
     }
 
     /**
+     * R37：编辑器 `saveCurrentRevision` 在「原目录 → 备份」与「暂存 → 原目录」两次改名之间
+     * 被杀时，表盘只剩 `.<id>.backup-*`，以前没有任何地方把它找回来。进程内第一次扫描时
+     * （此时不会有进行中的编辑保存）把目标缺失的备份还原，并清掉超过 10 分钟的
+     * `.install-*` / `.<id>.revision-*` 暂存目录。保存事务本身不变。
+     */
+    internal fun recoverInterruptedTransactions(
+        root: File,
+        force: Boolean = false,
+    ): DirectorySwap.RecoveryReport? {
+        if (!force && !recoveryDone.compareAndSet(false, true)) return null
+        return runCatching { DirectorySwap.recover(root) }.getOrNull()
+    }
+
+    /**
      * R35：只读取一个已安装表盘，得到和 [scan] 完全相同的描述，让冷启动的当前表盘不必等全部表盘扫完。
      * 不是本存储里的普通安装目录（含点开头的临时目录、越界名称）时返回 null，调用方退回全量扫描。
      */
@@ -131,6 +149,8 @@ object WatchmakerWatchFaceStorage {
         val stableId = id.removePrefix(WATCHMAKER_ID_PREFIX)
         if (stableId.isEmpty() || stableId.startsWith(".") || stableId.contains('/') || stableId.contains('\\')) return null
         val root = rootDirectory(context).canonicalFile
+        // 与全量扫描同一套中断恢复（进程内只跑一次）：表盘只剩备份目录时也能读到。
+        recoverInterruptedTransactions(root)
         val directory = File(root, stableId)
         if (!directory.isDirectory || directory.canonicalFile.parentFile != root) return null
         val metadataReader = WatchmakerMetadataReader(File(context.cacheDir, "watchmaker-metadata"))
