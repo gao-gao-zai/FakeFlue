@@ -180,4 +180,74 @@ class BackupArchiveTest {
         val reason = reasonOf { sanitizeBackupWatchArchive(nested, File(root, "out.watch"), limits) }
         assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reason)
     }
+
+    @Test
+    fun `preview bounds skipped files before the manifest`() {
+        val archive = zip("big.bin" to ByteArray(256 * 1024), "manifest.json" to manifest())
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            readBackupManifest(ByteArrayInputStream(archive), BackupArchiveLimits(maxEntryBytes = 64L * 1024L))
+        })
+    }
+
+    @Test
+    fun `preview bounds data carried by a directory entry`() {
+        val archive = zip("directory/" to ByteArray(256 * 1024), "manifest.json" to manifest())
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            readBackupManifest(ByteArrayInputStream(archive), BackupArchiveLimits(maxEntryBytes = 64L * 1024L))
+        })
+    }
+
+    @Test
+    fun `preview counts skipped entries toward the total expanded budget`() {
+        val archive = zip("a.bin" to ByteArray(40 * 1024), "b.bin" to ByteArray(40 * 1024), "manifest.json" to manifest())
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            readBackupManifest(ByteArrayInputStream(archive), BackupArchiveLimits(maxEntryBytes = 64L * 1024L, maxTotalBytes = 64L * 1024L))
+        })
+    }
+
+    @Test
+    fun `extraction bounds directory entry bodies`() {
+        val archive = zip("directory/" to ByteArray(256 * 1024), "manifest.json" to manifest())
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            extract(archive, BackupArchiveLimits(maxEntryBytes = 64L * 1024L))
+        })
+    }
+
+    @Test
+    fun `nested watch metadata is counted even when omitted from the output`() {
+        val nested = File(root, "nested.watch")
+        nested.writeBytes(zip(".flue/metadata.json" to ByteArray(256 * 1024), "watch.xml" to "<Watch/>".toByteArray()))
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            sanitizeBackupWatchArchive(nested, File(root, "out.watch"), WatchArchiveLimits(maximumExpandedBytes = 64L * 1024L))
+        })
+    }
+
+    @Test
+    fun `nested watch directory bodies are counted toward the expanded budget`() {
+        val nested = File(root, "nested.watch")
+        nested.writeBytes(zip("directory/" to ByteArray(256 * 1024), "watch.xml" to "<Watch/>".toByteArray()))
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            sanitizeBackupWatchArchive(nested, File(root, "out.watch"), WatchArchiveLimits(maximumExpandedBytes = 64L * 1024L))
+        })
+    }
+
+    @Test
+    fun `nested skipped metadata also respects the per entry budget`() {
+        val nested = File(root, "nested.watch")
+        nested.writeBytes(zip(".flue/metadata.json" to ByteArray(128 * 1024), "watch.xml" to "<Watch/>".toByteArray()))
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            sanitizeBackupWatchArchive(nested, File(root, "out.watch"), WatchArchiveLimits(
+                maximumOtherFileBytes = 64L * 1024L,
+                maximumExpandedBytes = 1024L * 1024L,
+            ))
+        })
+    }
+
+    @Test
+    fun `directory entry bytes count toward the extraction total`() {
+        val archive = zip("a/" to ByteArray(40 * 1024), "b/" to ByteArray(40 * 1024), "manifest.json" to manifest())
+        assertEquals(FlueBackupFormatException.Reason.TOO_LARGE, reasonOf {
+            extract(archive, BackupArchiveLimits(maxEntryBytes = 64L * 1024L, maxTotalBytes = 64L * 1024L))
+        })
+    }
 }

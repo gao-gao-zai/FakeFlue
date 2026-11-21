@@ -508,7 +508,7 @@ object FlueBackupManager {
             // ---- 第 3 步：一次提交全部配置 ----
             var skippedSettings = 0
             val sectionsInEdit = ArrayList<String>()
-            try {
+            val committedPreferences = try {
                 context.dataStore.edit { prefs ->
                     sectionsInEdit.clear()
                     skippedSettings = 0
@@ -569,7 +569,7 @@ object FlueBackupManager {
             restored += sectionsInEdit
 
             // ---- 第 4 步：提交成功后才清理旧文件、换上公开图标 ----
-            staging.commit().forEach { failedName ->
+            staging.commit(committedPreferences.referencedMediaFiles()).forEach { failedName ->
                 issues += FlueBackupImportIssue(settingsSection, "publicIcon:$failedName", "图标替换失败")
             }
             if (disguisePhoto is StageOutcome.Staged || disguiseVideo is StageOutcome.Staged ||
@@ -676,16 +676,38 @@ object FlueBackupManager {
         }
 
         /** 返回换上失败的图标文件名。 */
-        fun commit(): List<String> {
+        fun commit(referencedFiles: Collection<File>): List<String> {
             if (finished) return emptyList()
             finished = true
-            stagedFiles.groupBy { it.parentFile }.forEach { (directory, keep) ->
-                if (directory != null) StagedFiles.pruneExcept(directory, keep)
+            val referencedPaths = referencedFiles.mapTo(HashSet()) { it.absoluteFile.normalize().path }
+            val (adoptedFiles, unusedFiles) = stagedFiles.partition { it.absoluteFile.normalize().path in referencedPaths }
+            // 分区失败时暂存成功的另一项没有生效，只删新文件，保留旧资源。
+            unusedFiles.forEach { it.delete() }
+            adoptedFiles.mapNotNull { it.parentFile }.distinct().forEach { directory ->
+                // 字体等目录可以被多个分区、模式引用，按实际提交后的全部路径保留。
+                StagedFiles.pruneExcept(directory, referencedFiles)
             }
             return replacements.mapNotNull { (temp, target) ->
                 runCatching { StagedFiles.moveReplacing(temp, target) }
                     .fold(onSuccess = { null }, onFailure = { temp.delete(); target.name })
             }
+        }
+    }
+
+    /** 当前配置实际引用的媒体，也包括此次未选择或恢复失败的分区。 */
+    private fun Preferences.referencedMediaFiles(): List<File> = buildList {
+        listOf(
+            LauncherViewModel.KEY_BUILTIN_PHOTO_PATH,
+            LauncherViewModel.KEY_BUILTIN_VIDEO_PATH,
+            LauncherViewModel.KEY_WATCHFACE_FONT_PATH,
+        ).forEach { key ->
+            this@referencedMediaFiles[key]?.let { add(File(it)) }
+            this@referencedMediaFiles[disguiseKey(key)]?.let { add(File(it)) }
+        }
+        val backgroundKey = LauncherViewModel.KEY_APP_LIST_BACKGROUND
+        listOf(backgroundKey, disguiseKey(backgroundKey)).forEach { key ->
+            AppListBackgroundJson.decodeOrDefault(this@referencedMediaFiles[key]).imagePath
+                ?.let { add(File(it)) }
         }
     }
 

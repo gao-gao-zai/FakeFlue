@@ -8,6 +8,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -54,12 +55,13 @@ internal class FlueBackupFormatException(
 internal fun normalizeBackupEntryName(raw: String): String = raw.replace('\\', '/').trimStart('/')
 
 /**
- * 只读出 manifest.json（预览用），读取量有上限。不检查重复条目——预览不扫完整个包，
+ * 只读出 manifest.json（预览用），此前跳过的条目也按实际展开字节限流。不检查重复条目——预览不扫完整个包，
  * 重复条目由 [extractBackupArchive] 在真正导入时拒绝，所以预览看到的就是会被导入的那份。
  */
 internal fun readBackupManifest(input: InputStream, limits: BackupArchiveLimits = BackupArchiveLimits()): JSONObject {
     ZipInputStream(input.buffered()).use { zip ->
         var count = 0
+        var total = 0L
         while (true) {
             val entry = zip.nextEntry ?: break
             count += 1
@@ -69,9 +71,12 @@ internal fun readBackupManifest(input: InputStream, limits: BackupArchiveLimits 
                     "备份条目过多（上限 ${limits.maxEntries}）",
                 )
             }
+            val entryLimit = minOf(limits.maxEntryBytes, limits.maxTotalBytes - total)
             if (!entry.isDirectory && normalizeBackupEntryName(entry.name) == BACKUP_MANIFEST_ENTRY) {
-                return parseBackupManifest(zip.readBoundedManifest(limits))
+                return parseBackupManifest(zip.readBoundedManifest(minOf(limits.maxManifestBytes, entryLimit)))
             }
+            // closeEntry 会解压剩余内容，先显式限流读取才能约束被跳过的条目。
+            total += zip.copyBackupEntryTo(discardedEntryOutput, entryLimit, "备份预览条目")
             zip.closeEntry()
         }
     }
@@ -104,8 +109,19 @@ internal fun checkBackupSchema(manifest: JSONObject) {
     }
 }
 
-private fun ZipInputStream.readBoundedManifest(limits: BackupArchiveLimits): ByteArray = try {
-    readBytesBounded(limits.maxManifestBytes, "备份清单")
+private fun ZipInputStream.readBoundedManifest(limitBytes: Long): ByteArray = try {
+    readBytesBounded(limitBytes, "备份清单")
+} catch (error: SizeLimitExceededException) {
+    throw FlueBackupFormatException(FlueBackupFormatException.Reason.TOO_LARGE, error.message.orEmpty(), cause = error)
+}
+
+private val discardedEntryOutput = object : OutputStream() {
+    override fun write(value: Int) = Unit
+    override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
+}
+
+private fun InputStream.copyBackupEntryTo(output: OutputStream, limitBytes: Long, what: String): Long = try {
+    copyToBounded(output, limitBytes, what)
 } catch (error: SizeLimitExceededException) {
     throw FlueBackupFormatException(FlueBackupFormatException.Reason.TOO_LARGE, error.message.orEmpty(), cause = error)
 }
@@ -151,6 +167,11 @@ internal fun extractBackupArchive(
             }
             if (entry.isDirectory) {
                 target.mkdirs()
+                total += zip.copyBackupEntryTo(
+                    discardedEntryOutput,
+                    minOf(limits.maxEntryBytes, limits.maxTotalBytes - total),
+                    "备份目录条目",
+                )
                 zip.closeEntry()
                 continue
             }
@@ -227,7 +248,8 @@ internal fun sanitizeBackupWatchArchive(
                         "表盘条目过多（上限 ${limits.maximumEntryCount}）",
                     )
                 }
-                if (!isFlueInstallMetadataPath(entry.name)) {
+                val omitted = isFlueInstallMetadataPath(entry.name)
+                if (!omitted) {
                     if (!seen.add(entry.name)) {
                         throw FlueBackupFormatException(
                             FlueBackupFormatException.Reason.DUPLICATE_ENTRY,
@@ -235,20 +257,16 @@ internal fun sanitizeBackupWatchArchive(
                         )
                     }
                     output.putNextEntry(ZipEntry(entry.name))
-                    if (!entry.isDirectory) {
-                        val remaining = limits.maximumExpandedBytes - total
-                        total += try {
-                            input.copyToBounded(output, remaining, "表盘展开总量")
-                        } catch (error: SizeLimitExceededException) {
-                            throw FlueBackupFormatException(
-                                FlueBackupFormatException.Reason.TOO_LARGE,
-                                error.message.orEmpty(),
-                                cause = error,
-                            )
-                        }
-                    }
-                    output.closeEntry()
                 }
+                val discarded = omitted || entry.isDirectory
+                val destination = if (discarded) discardedEntryOutput else output
+                val entryLimit = if (discarded) limits.maximumOtherFileBytes else limits.maximumExpandedBytes
+                total += input.copyBackupEntryTo(
+                    destination,
+                    minOf(entryLimit, limits.maximumExpandedBytes - total),
+                    "表盘展开总量",
+                )
+                if (!omitted) output.closeEntry()
                 input.closeEntry()
             }
         }
