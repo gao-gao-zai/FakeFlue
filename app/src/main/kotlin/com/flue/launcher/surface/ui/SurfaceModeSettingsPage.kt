@@ -47,6 +47,8 @@ internal fun SurfaceModeSettingsPage(
     onOpenPublicOverrides: () -> Unit,
     onOpenPermissions: () -> Unit,
     onOpenSystemControl: () -> Unit,
+    onOpenDesktopLock: () -> Unit,
+    onOpenQuickEntry: () -> Unit,
 ) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
@@ -148,6 +150,18 @@ internal fun SurfaceModeSettingsPage(
                     title = stringResource(R.string.surface_sys_title),
                     subtitle = stringResource(R.string.surface_sys_entry_sub),
                     onClick = onOpenSystemControl,
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_lock_settings_title),
+                    subtitle = stringResource(
+                        if (runtime.desktopLock.enabled()) R.string.surface_lock_status_on else R.string.surface_lock_status_off,
+                    ),
+                    onClick = onOpenDesktopLock,
+                )
+                AgentSettingsEntry(
+                    title = stringResource(R.string.surface_quick_title),
+                    subtitle = stringResource(R.string.surface_quick_entry_sub),
+                    onClick = onOpenQuickEntry,
                 )
                 AgentSettingsEntry(
                     title = stringResource(R.string.surface_secret_title),
