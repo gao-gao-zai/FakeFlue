@@ -51,7 +51,18 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.runtime.mutableStateOf
+import com.flue.launcher.surface.secret.BackDragResult
+import com.flue.launcher.surface.secret.SafeBounds
+import com.flue.launcher.surface.secret.backAreaGesture
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -161,6 +172,11 @@ fun FfluePageScaffold(
     /** 要跳到的列表位置（第 0 项是页头）；跳完调用 [onScrolled]，调用方把它清成 null。 */
     scrollTo: Int? = null,
     onScrolled: () -> Unit = {},
+    /**
+     * 返回按钮按住 2 秒后拖动的结果（R15、R17，只有公开关于页使用）。为 null 时返回按钮只是普通按钮。
+     * 拖动是否达标按本页安全区判断。
+     */
+    onBackAreaDrag: ((BackDragResult) -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val style = LauncherTheme.style
@@ -179,13 +195,27 @@ fun FfluePageScaffold(
     val system = WindowInsets.safeDrawing.asPaddingValues()
     val density = LocalDensity.current
     var barHeightPx by remember { mutableIntStateOf(0) }
+    var pageCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     Surface(
         modifier = Modifier.fillMaxSize().fflueSwipeBack(swipeBackEnabled, onBack),
         color = style.screenBackground,
         contentColor = style.bodyColor,
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { pageCoordinates = it }) {
             val frame = rememberSafeAreaFrame(maxWidth, maxHeight)
+            val backArea = onBackAreaDrag?.let { onDrag ->
+                BackAreaHandler(onDrag) {
+                    val page = pageCoordinates?.takeIf { it.isAttached } ?: return@BackAreaHandler null
+                    val origin = page.positionInWindow()
+                    val scale = density.density
+                    SafeBounds(
+                        left = origin.x + frame.left * scale,
+                        top = origin.y + frame.top * scale,
+                        width = frame.width * scale,
+                        height = frame.height * scale,
+                    )
+                }
+            }
             val rounded = frame.barInset > 4f
             val edgeTop = (frame.top + frame.barInset).dp
             val horizontal = frame.left.dp + 12.dp
@@ -208,7 +238,7 @@ fun FfluePageScaffold(
                 verticalArrangement = Arrangement.spacedBy(if (style.uiStyle == UiStyle.APPLE_WATCH) 16.dp else 12.dp),
             ) {
                 item(key = "fflue_page_header") {
-                    FflueHeader(title = title, subtitle = subtitle, centered = rounded, onBack = onBack)
+                    FflueHeader(title = title, subtitle = subtitle, centered = rounded, onBack = onBack, backArea = backArea)
                 }
                 content()
             }
@@ -241,7 +271,13 @@ fun FfluePageScaffold(
 }
 
 @Composable
-private fun FflueHeader(title: String, subtitle: String?, centered: Boolean, onBack: () -> Unit) {
+private fun FflueHeader(
+    title: String,
+    subtitle: String?,
+    centered: Boolean,
+    onBack: () -> Unit,
+    backArea: BackAreaHandler? = null,
+) {
     val style = LauncherTheme.style
     val roundScreen = isFlueScreenRound()
     val inlineTitle = style.uiStyle == UiStyle.MIUIX && !centered
@@ -255,7 +291,7 @@ private fun FflueHeader(title: String, subtitle: String?, centered: Boolean, onB
                 Arrangement.spacedBy(12.dp)
             },
         ) {
-            FflueBackButton(onBack)
+            FflueBackButton(onBack, backArea)
             if (inlineTitle) Text(
                 text = title,
                 modifier = Modifier.weight(1f),
@@ -289,12 +325,36 @@ private fun FflueHeader(title: String, subtitle: String?, centered: Boolean, onB
     }
 }
 
-/** 紧凑返回按钮：点击就执行返回（R25），不是装饰箭头。 */
+/** 返回区域的隐藏拖动（R15、R17）：拖动结果和安全区在窗口中的位置。 */
+class BackAreaHandler(val onDrag: (BackDragResult) -> Unit, val safeBounds: () -> SafeBounds?)
+
+/**
+ * 紧凑返回按钮：点击就执行返回（R25），不是装饰箭头。
+ * 带 [backArea] 时改用自己的手势：点击返回，按住 2 秒后拖动交给 [BackAreaHandler]，外观和点击行为不变。
+ */
 @Composable
-fun FflueBackButton(onClick: () -> Unit) {
+fun FflueBackButton(onClick: () -> Unit, backArea: BackAreaHandler? = null) {
     val style = LauncherTheme.style
     val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
+    val clickPressed by source.collectIsPressedAsState()
+    var holdPressed by remember { mutableStateOf(false) }
+    val pressed = clickPressed || holdPressed
+    val description = stringResource(R.string.watch_editor_back)
+    val input = if (backArea == null) {
+        Modifier.clickable(interactionSource = source, indication = null, onClick = onClick)
+    } else {
+        Modifier
+            .semantics {
+                role = Role.Button
+                onClick { onClick(); true }
+            }
+            .backAreaGesture(
+                onTap = onClick,
+                onDrag = backArea.onDrag,
+                safeBounds = backArea.safeBounds,
+                onPressedChange = { holdPressed = it },
+            )
+    }
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.92f else 1f,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f),
@@ -306,12 +366,12 @@ fun FflueBackButton(onClick: () -> Unit) {
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(if (style.uiStyle == UiStyle.APPLE_WATCH) CircleShape else style.smallControlShape)
             .background(style.topBarChipColor)
-            .clickable(interactionSource = source, indication = null, onClick = onClick),
+            .then(input),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = MiuixIcons.Back,
-            contentDescription = stringResource(R.string.watch_editor_back),
+            contentDescription = description,
             tint = style.titleColor,
             modifier = Modifier.size(22.dp),
         )

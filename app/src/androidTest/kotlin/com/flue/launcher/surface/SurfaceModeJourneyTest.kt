@@ -48,6 +48,10 @@ class SurfaceModeJourneyTest {
     @Before
     fun setUp() {
         runtime.stateStore.welcomeCompleted = true
+        // 进入伪装需要可读的隐藏密码（R12）。
+        if (runtime.secretStore.read() !is com.flue.launcher.surface.secret.SecretRead.Available) {
+            assertTrue(runtime.secretStore.save(listOf(1, 2, 3, 4, 5, 1)))
+        }
         runOnMain { runtime.controller.switchTo(SurfaceMode.FULL) }
     }
 

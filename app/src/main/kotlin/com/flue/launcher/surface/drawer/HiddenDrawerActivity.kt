@@ -72,7 +72,7 @@ import java.text.Collator
  * 首字母分组、检索、长按置顶，点击直接启动。
  *
  * 伪装模式下只有管理会话或一次性授权（[SurfaceRuntime.consumeHiddenDrawerAccess]）能打开；
- * 熄屏或模式改变时关闭，返回回到表盘。不导出，外部应用打不开。P3 接控制中心入口。
+ * 熄屏或模式改变时关闭，返回回到表盘。不导出，外部应用打不开。入口是控制中心电量按住 2 秒后的静默验证。
  */
 class HiddenDrawerActivity : FlueComponentActivity() {
 
@@ -87,8 +87,9 @@ class HiddenDrawerActivity : FlueComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val runtime = SurfaceRuntime.get(this)
-        // 重建（旋转、改 DPI）时沿用本次已通过的访问，不再消耗授权。
-        if (savedInstanceState == null && !runtime.consumeHiddenDrawerAccess()) {
+        // 重建（旋转、改 DPI）时沿用本次已通过的访问，不再消耗授权；进程重建后不沿用。
+        val restored = savedInstanceState?.getString(STATE_TOKEN) == runtime.processToken
+        if (!restored && !runtime.consumeHiddenDrawerAccess()) {
             finish()
             return
         }
@@ -131,6 +132,11 @@ class HiddenDrawerActivity : FlueComponentActivity() {
         super.onDestroy()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(STATE_TOKEN, SurfaceRuntime.get(this).processToken)
+    }
+
     private fun finishToFace() {
         if (SurfaceRuntime.get(this).controller.configScope.value == ConfigScope.DISGUISE) {
             runCatching { startActivity(SurfaceHome.returnToFaceIntent(this)) }
@@ -139,6 +145,8 @@ class HiddenDrawerActivity : FlueComponentActivity() {
     }
 
     companion object {
+        private const val STATE_TOKEN = "hidden_drawer_token"
+
         fun intent(context: Context): Intent = Intent(context, HiddenDrawerActivity::class.java)
     }
 }

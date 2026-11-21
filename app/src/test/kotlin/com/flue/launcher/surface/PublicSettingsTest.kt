@@ -10,7 +10,6 @@ import com.flue.launcher.surface.publicsettings.DeviceInfoReader
 import com.flue.launcher.surface.publicsettings.DeviceRouteChoice
 import com.flue.launcher.surface.publicsettings.DeviceRouter
 import com.flue.launcher.surface.publicsettings.PublicSettingsItem
-import com.flue.launcher.surface.publicsettings.RepeatTapDetector
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -97,19 +96,5 @@ class PublicSettingsTest {
         val values = DeviceInfoReader.read(context)
         assertTrue(values[AboutField.ANDROID_VERSION]!!.startsWith("Android "))
         values.values.filterNotNull().forEach { assertTrue(it.isNotBlank()) }
-    }
-
-    @Test
-    fun temporaryGestureNeedsSevenQuickTaps() {
-        val d = RepeatTapDetector(required = 7, gapMs = 1_000)
-        repeat(6) { assertFalse(d.tap(it * 300L)) }
-        assertTrue(d.tap(1_800))
-        assertFalse(d.tap(2_000))
-        val slow = RepeatTapDetector(required = 3, gapMs = 1_000)
-        assertFalse(slow.tap(0))
-        assertFalse(slow.tap(500))
-        assertFalse(slow.tap(2_000))
-        assertFalse(slow.tap(2_500))
-        assertTrue(slow.tap(3_000))
     }
 }

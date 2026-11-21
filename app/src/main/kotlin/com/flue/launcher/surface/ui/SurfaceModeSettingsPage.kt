@@ -18,6 +18,9 @@ import com.flue.launcher.surface.SurfaceHome
 import com.flue.launcher.surface.SurfaceRuntime
 import com.flue.launcher.surface.mode.SurfaceMode
 import com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity
+import com.flue.launcher.surface.secret.SecretRead
+import com.flue.launcher.surface.secret.SecretSetupActivity
+import com.flue.launcher.surface.secret.SecretSetupMode
 import com.flue.launcher.ui.settings.agent.AgentSettingsEntry
 import com.flue.launcher.ui.settings.agent.AgentSettingsGroup
 import com.flue.launcher.ui.settings.agent.AgentSettingsScreen
@@ -60,6 +63,7 @@ internal fun SurfaceModeSettingsPage(
         notificationAllowCount = runtime.disguiseNotificationAllowedApps().size
     }
     val keepAppOnScreenOff by runtime.screenOffKeepApp.collectAsState()
+    val secretState = remember(resumeTick) { runtime.secretStore.read() }
     val scope = rememberCoroutineScope()
 
     fun switch(target: SurfaceMode) {
@@ -109,6 +113,20 @@ internal fun SurfaceModeSettingsPage(
         item(key = "surface_disguise") {
             AgentSettingsGroup(stringResource(R.string.surface_mode_disguise)) {
                 AgentSettingsEntry(
+                    title = stringResource(R.string.surface_secret_title),
+                    subtitle = stringResource(
+                        when (secretState) {
+                            is SecretRead.Available -> R.string.surface_secret_entry_set
+                            SecretRead.NotSet -> R.string.surface_secret_entry_unset
+                            SecretRead.Unreadable -> R.string.surface_secret_entry_unreadable
+                        },
+                    ),
+                    onClick = {
+                        val setupMode = if (secretState is SecretRead.Available) SecretSetupMode.MAINTAIN else SecretSetupMode.INITIAL
+                        context.startActivity(SecretSetupActivity.intent(context, setupMode))
+                    },
+                )
+                AgentSettingsEntry(
                     title = stringResource(R.string.surface_public_apps_title),
                     subtitle = publicCount?.let { stringResource(R.string.surface_public_apps_entry_sub, it) },
                     onClick = onOpenPublicApps,
@@ -133,14 +151,6 @@ internal fun SurfaceModeSettingsPage(
                     title = stringResource(R.string.about_overrides_title),
                     subtitle = stringResource(R.string.about_overrides_entry_sub),
                     onClick = onOpenAboutOverrides,
-                )
-                // 临时入口：P3 接控制中心电量长按验证前，从管理会话里打开隐藏完整抽屉。
-                AgentSettingsEntry(
-                    title = stringResource(R.string.surface_hidden_drawer_title),
-                    subtitle = stringResource(R.string.surface_hidden_drawer_entry_sub),
-                    onClick = {
-                        context.startActivity(com.flue.launcher.surface.drawer.HiddenDrawerActivity.intent(context))
-                    },
                     last = true,
                 )
             }
