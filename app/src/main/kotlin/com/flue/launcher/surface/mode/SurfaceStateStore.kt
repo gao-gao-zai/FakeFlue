@@ -60,11 +60,22 @@ class SurfaceStateStore(private val prefs: SharedPreferences) : SurfaceStateStor
             prefs.edit().putString(KEY_PREFERRED_EXIT, value.name).commit()
         }
 
+    /**
+     * R28、R29：用户在授权页主动检测过 Root 且拿到了 uid 0。只有这时才会启动导航守护，
+     * 日常使用不因此弹出 Root 授权。检测失败会清掉。
+     */
+    var rootConfirmed: Boolean
+        get() = prefs.getBoolean(KEY_ROOT_CONFIRMED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_ROOT_CONFIRMED, value).commit()
+        }
+
     companion object {
         const val FILE_NAME = "fflue_surface_state"
         const val KEY_DISGUISE_SETUP_STEPS = "disguise_setup_steps"
         const val KEY_TUTORIAL_VERSION = "tutorial_version"
         const val KEY_PREFERRED_EXIT = "preferred_exit"
+        const val KEY_ROOT_CONFIRMED = "root_confirmed"
         const val KEY_MODE = "mode"
         const val KEY_EXTERNAL_TARGET = "external_home_target"
         const val KEY_WELCOME_COMPLETED = "welcome_completed"

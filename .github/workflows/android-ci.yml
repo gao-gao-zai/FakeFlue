@@ -116,6 +116,7 @@ jobs:
             adb shell wm density 320
             chmod +x gradlew && ./gradlew --max-workers=2 -Pflue.extraAbi=x86_64 assembleDebug
             bash scripts/ci/statusbar-spike.sh "$(ls app/build/outputs/apk/debug/*.apk | head -1)" build/spike
+            bash scripts/ci/guard-daemon-check.sh build/spike/guard
             ./gradlew --max-workers=2 -Pflue.extraAbi=x86_64 connectedDebugAndroidTest
 
       - name: 上传仪器测试报告
