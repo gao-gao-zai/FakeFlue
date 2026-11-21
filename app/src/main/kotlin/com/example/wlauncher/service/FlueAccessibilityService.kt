@@ -30,6 +30,11 @@ class FlueAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val observedPackage = event.packageName?.toString()?.takeIf { it.isNotBlank() } ?: return
+        _observedForeground.value = ForegroundPackageEvidence(
+            packageName = observedPackage,
+            observedAtElapsedMs = SystemClock.elapsedRealtime(),
+            sequence = evidenceSequence.incrementAndGet(),
+        )
         if (observedPackage == applicationContext.packageName) {
             pendingExternalForegroundEvidence?.let { sealedEvidence ->
                 _lastExternalForegroundEvidence.value = sealedEvidence
@@ -68,6 +73,7 @@ class FlueAccessibilityService : AccessibilityService() {
     private fun clearForegroundEvidence() {
         pendingExternalForegroundEvidence = null
         _lastExternalForegroundEvidence.value = null
+        _observedForeground.value = null
     }
 
     companion object {
@@ -79,6 +85,11 @@ class FlueAccessibilityService : AccessibilityService() {
             MutableStateFlow<ForegroundPackageEvidence?>(null)
         val lastExternalForegroundEvidence: StateFlow<ForegroundPackageEvidence?> =
             _lastExternalForegroundEvidence.asStateFlow()
+
+        private val _observedForeground = MutableStateFlow<ForegroundPackageEvidence?>(null)
+
+        /** 最近一次窗口切换所属的包（含本应用），供小组件点击后的目标检查（R11）。 */
+        val observedForeground: StateFlow<ForegroundPackageEvidence?> = _observedForeground.asStateFlow()
 
         fun isConnected(): Boolean = activeService != null || _connected.value
 

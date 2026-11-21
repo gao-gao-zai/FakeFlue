@@ -286,7 +286,10 @@ class LauncherActivity : FlueComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.getBooleanExtra(AodController.EXTRA_AOD_FOREGROUND, false)) {
+        if (intent.getBooleanExtra(com.flue.launcher.surface.SurfaceHome.EXTRA_RETURN_TO_FACE, false)) {
+            // R09 第三方应用熄屏回表盘、R11 小组件打开了未公开应用：只在伪装模式发出。
+            vm.onLauncherReturnToFace()
+        } else if (intent.getBooleanExtra(AodController.EXTRA_AOD_FOREGROUND, false)) {
             // 模式切换前已排队的 AOD 唤醒：外部模式下转交回外部桌面，不停留在 FFlue。
             if (!SurfaceRuntime.get(this).onLauncherIntent(this, isHomeIntent = true)) vm.onLauncherAodForeground()
         } else if (intent.isLauncherHomeIntent() && SurfaceRuntime.get(this).onLauncherIntent(this, true)) {
@@ -419,7 +422,8 @@ fun LauncherScreen(vm: LauncherViewModel, aodController: AodController? = null) 
     val showStepCount by vm.showStepCount.collectAsStateWithLifecycle()
     val showNotification by vm.showNotification.collectAsStateWithLifecycle()
     val rotaryHapticsEnabled by vm.rotaryHapticsEnabled.collectAsStateWithLifecycle()
-    val showWidgetPage by vm.showWidgetPage.collectAsStateWithLifecycle()
+    // R11：伪装模式下没有可用的公开小组件时不能进小组件页，手势和渲染都按“能否进入”走。
+    val showWidgetPage by vm.widgetPageAvailable.collectAsStateWithLifecycle()
     val widgetGlassHighlightEnabled by vm.widgetGlassHighlightEnabled.collectAsStateWithLifecycle()
     val showControlCenter by vm.showControlCenter.collectAsStateWithLifecycle()
     val watchFaceChargingPowerText by vm.watchFaceChargingPowerText.collectAsStateWithLifecycle()
@@ -2771,8 +2775,13 @@ fun LauncherScreen(vm: LauncherViewModel, aodController: AodController? = null) 
                         .clip(flueOverlayMaskShape(overlayMaskCornerRadiusDp))
                 ) {
                     val sideScreenWidgetSlots by vm.sideScreenWidgetSlots.collectAsStateWithLifecycle()
+                    val widgetPageEditable by vm.widgetPageEditable.collectAsStateWithLifecycle()
+                    val surfacePublicApps by remember(context) { SurfaceRuntime.get(context).publicApps }
+                        .collectAsStateWithLifecycle()
                     WidgetPageLayer(
                         apps = allApps,
+                        editable = widgetPageEditable,
+                        publicApps = surfacePublicApps,
                         active = screenState == ScreenState.Widgets,
                         sideScreenWidgetSlots = sideScreenWidgetSlots,
                         leftSafeInsetPercent = appListLeftSafeInsetPercent,

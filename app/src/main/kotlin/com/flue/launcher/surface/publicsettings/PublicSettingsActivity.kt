@@ -52,8 +52,11 @@ class PublicSettingsActivity : FlueComponentActivity() {
     /**
      * 临时：P3 五区域密码之前离开伪装的唯一入口，打开完整设置的桌面模式页。
      * P3 接入隐藏管理菜单后删除。
+     *
+     * 同时开始本次管理流程（熄屏或模式改变即失效），期间可编辑伪装小组件（R11）。
      */
     private fun openManagement() {
+        com.flue.launcher.surface.SurfaceRuntime.get(this).beginManagementSession()
         startActivity(
             Intent(this, SettingsActivity::class.java)
                 .putExtra(EXTRA_SETTINGS_DESTINATION, SETTINGS_DESTINATION_SURFACE),

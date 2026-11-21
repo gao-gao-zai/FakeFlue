@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetHostView
+import com.flue.launcher.surface.apps.PublicAppRules
+import com.flue.launcher.surface.widgets.WidgetLaunchGuardContext
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.BroadcastReceiver
@@ -1013,6 +1015,10 @@ fun SmartStackLayer(
 fun WidgetPageLayer(
     apps: List<AppInfo>,
     active: Boolean = true,
+    /** 能否添加、编辑（R11：普通伪装页不能）。 */
+    editable: Boolean = true,
+    /** 伪装模式的公开应用白名单；null 表示不限制。提供方未公开的小组件不展示、不能添加。 */
+    publicApps: Set<String>? = null,
     sideScreenWidgetSlots: List<String?>,
     leftSafeInsetPercent: Int,
     glassHighlightEnabled: Boolean = true,
@@ -1038,9 +1044,13 @@ fun WidgetPageLayer(
     val listState = rememberLazyListState()
     val sharedElasticState = rememberFlueElasticScrollState(listState)
     val scope = rememberCoroutineScope()
-    val widgetCards = remember(sideScreenWidgetSlots, widgetRepository) {
+    val isProviderPublic: (String) -> Boolean = remember(publicApps, context) {
+        { pkg -> PublicAppRules.isPackagePublic(pkg, publicApps, context.packageName) }
+    }
+    val widgetCards = remember(sideScreenWidgetSlots, widgetRepository, isProviderPublic) {
+        // 取消公开只隐藏，不删槽位；保留原槽位下标，编辑操作仍按真实位置写回。
         val parsedCards = sideScreenWidgetSlots.mapIndexedNotNull { index, raw ->
-            widgetRepository.parseSlotValue(raw)?.let { widget ->
+            widgetRepository.parseSlotValue(raw)?.takeIf { isProviderPublic(it.packageName) }?.let { widget ->
                 SideScreenWidgetCardItem(
                     widgetIndex = index,
                     widget = widget,
@@ -1131,6 +1141,14 @@ fun WidgetPageLayer(
 
     LaunchedEffect(editMode, showPicker) {
         onEditModeChange(editMode && !showPicker)
+    }
+
+    // 管理流程结束（熄屏、模式改变）时立即退出编辑和添加。
+    LaunchedEffect(editable) {
+        if (!editable) {
+            editMode = false
+            showPicker = false
+        }
     }
 
     // 编辑模式下按返回先退出编辑，而不是直接回表盘（老师报的）。
@@ -1572,14 +1590,16 @@ fun WidgetPageLayer(
                                     bindingDecision = bindingDecision,
                                     recoveryInProgress = recoveryState == WidgetRecoveryUiState.RECOVERING,
                                     onRebind = if (
-                                        bindingDecision == WidgetBindingDecision.RECOVER ||
-                                        recoveryState == WidgetRecoveryUiState.REBIND_REQUIRED
+                                        editable && (
+                                            bindingDecision == WidgetBindingDecision.RECOVER ||
+                                                recoveryState == WidgetRecoveryUiState.REBIND_REQUIRED
+                                            )
                                     ) {
                                         { requestWidgetRebind(card.widgetIndex, card.widget) }
                                     } else {
                                         null
                                     },
-                                    onLongPress = if (!editMode && !showPicker) {
+                                    onLongPress = if (editable && !editMode && !showPicker) {
                                         {
                                             editMode = true
                                             editGestureLocked = true
@@ -1858,7 +1878,7 @@ fun WidgetPageLayer(
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (editable) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             WidgetPageChip(
                                 label = stringResource(
                                     if (editMode) R.string.widget_done else R.string.widget_edit,
@@ -1889,7 +1909,7 @@ fun WidgetPageLayer(
                             fontSize = 24.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (editable) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             WidgetPageChip(
                                 label = stringResource(
                                     if (editMode) R.string.widget_done else R.string.widget_edit,
@@ -1996,13 +2016,14 @@ fun WidgetPageLayer(
                 )
             }
         }
-        if (showPicker) {
+        if (showPicker && editable) {
         val repository = requireNotNull(widgetRepository)
         val host = requireNotNull(appWidgetHost)
         val manager = requireNotNull(appWidgetManager)
         WidgetPickerOverlay(
             apps = apps,
             widgetRepository = repository,
+            isProviderPublic = isProviderPublic,
             onSelectWidget = { widget ->
                 val targetIndex = sideScreenWidgetSlots.size
                 val providerInfo = repository.findProviderInfo(widget.widgetKey)
@@ -2560,7 +2581,12 @@ private fun WidgetCard(
                             view.invalidateOutline()
                         }
                     }
-                    val hostView = appWidgetHost.createView(viewContext, widget.widgetId, providerInfo).apply {
+                    // R11：点击经宿主 Context 发出，在这里检查实际目标。
+                    val hostView = appWidgetHost.createView(
+                        WidgetLaunchGuardContext(viewContext),
+                        widget.widgetId,
+                        providerInfo,
+                    ).apply {
                         setAppWidget(widget.widgetId, providerInfo)
                         tag = widgetBindTag
                         setPadding(0, 0, 0, 0)
@@ -3020,10 +3046,14 @@ private fun ShortcutPickerOverlay(
 private fun WidgetPickerOverlay(
     apps: List<AppInfo>,
     widgetRepository: WidgetRepository,
+    isProviderPublic: (String) -> Boolean,
     onSelectWidget: (WidgetInfo) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val widgetPickerItems = remember(widgetRepository) { widgetRepository.getAllWidgets() }
+    // R11：伪装模式只能选公开应用的小组件。
+    val widgetPickerItems = remember(widgetRepository, isProviderPublic) {
+        widgetRepository.getAllWidgets().filter { isProviderPublic(it.packageName) }
+    }
     val launcherAppsByPackage = remember(apps) {
         apps.filterNot { it.isBuiltInSettingsEntry }
             .groupBy { it.packageName }

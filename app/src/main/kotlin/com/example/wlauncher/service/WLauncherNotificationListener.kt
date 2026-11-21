@@ -52,6 +52,7 @@ class WLauncherNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "WLauncherNotif"
         private const val NOTIFICATION_ICON_SIZE_PX = 96
+        private const val ACTION_KEY_SEPARATOR = "/action/"
         private val IM_AVATAR_PACKAGES = setOf(
             "com.tencent.mobileqq",
             "com.tencent.qqlite",
@@ -92,7 +93,24 @@ class WLauncherNotificationListener : NotificationListenerService() {
             keys.forEach(service::cancelNotification)
         }
 
+        /**
+         * R11：伪装模式下只有公开应用的通知能直接打开；放行展示的未公开应用要先静默验证（P3），
+         * 在此之前不发送，通知留在通知中心。
+         */
+        private fun canOpenDirectly(notificationKey: String): Boolean {
+            val service = instance ?: return true
+            val surface = com.flue.launcher.surface.SurfaceRuntime.get(service.applicationContext)
+            if (surface.publicApps.value == null) return true
+            val pkg = _notifications.value.firstOrNull { it.key == notificationKey }?.packageName
+            return surface.isPackagePublic(pkg)
+        }
+
+        /** 该通知按钮是否因 R11 规则不能直接执行。 */
+        fun isActionBlocked(actionKey: String): Boolean =
+            !canOpenDirectly(actionKey.substringBefore(ACTION_KEY_SEPARATOR))
+
         fun openNotification(key: String): Boolean {
+            if (!canOpenDirectly(key)) return false
             val pendingIntent = synchronized(pendingIntentMap) { pendingIntentMap[key] } ?: return false
             return runCatching {
                 pendingIntent.send()
@@ -100,6 +118,7 @@ class WLauncherNotificationListener : NotificationListenerService() {
         }
 
         fun runNotificationAction(actionKey: String): Boolean {
+            if (isActionBlocked(actionKey)) return false
             val pendingIntent = synchronized(pendingActionIntentMap) {
                 pendingActionIntentMap[actionKey]
             } ?: return false
@@ -109,7 +128,7 @@ class WLauncherNotificationListener : NotificationListenerService() {
         }
 
         private fun actionKey(notificationKey: String, actionIndex: Int): String {
-            return "$notificationKey/action/$actionIndex"
+            return "$notificationKey$ACTION_KEY_SEPARATOR$actionIndex"
         }
     }
 
@@ -154,12 +173,12 @@ class WLauncherNotificationListener : NotificationListenerService() {
             }
             .getOrDefault(emptyArray())
         val pm = applicationContext.packageManager
-        // R11：伪装模式下未公开应用的通知不进通知层，也不计入表盘的通知数。
+        // R11：伪装模式下未公开且未单独放行的应用通知不进通知层，也不计入表盘的通知数。
         val surface = com.flue.launcher.surface.SurfaceRuntime.get(applicationContext)
         val visible = sbns.filter { sbn ->
             val flags = sbn.notification.flags
             val isGroupSummary = flags and Notification.FLAG_GROUP_SUMMARY != 0
-            !isGroupSummary && surface.isPackagePublic(sbn.packageName)
+            !isGroupSummary && surface.isNotificationVisible(sbn.packageName)
         }
         // 表盘 {cnc} 要的是真实条数，所以用 take(20) **之前**的数量：那个上限是
         // 通知层 UI 的显示预算，不是「用户有多少条通知」。

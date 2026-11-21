@@ -35,6 +35,7 @@ import com.flue.launcher.surface.SurfaceRuntime
 import com.flue.launcher.surface.apps.HanLatin
 import com.flue.launcher.surface.apps.PublicAppCandidate
 import com.flue.launcher.surface.apps.PublicAppCatalog
+import com.flue.launcher.surface.apps.PublicAppRules
 import com.flue.launcher.surface.apps.PublicAppSort
 import com.flue.launcher.ui.settings.agent.AgentSettingsEntry
 import com.flue.launcher.ui.settings.agent.AgentSettingsGroup
@@ -54,29 +55,53 @@ import java.text.Collator
  * 只有点保存才写入伪装配置；搜索和排序不改选中结果，也不碰桌面排序。
  * 内置入口总是公开，不在列表里出现。
  *
+ * 同一页也用来选择通知单独放行的应用（R11，[AppPickerPurpose.NOTIFICATION_ALLOW]）：
+ * 那份名单按包名保存，列表按包去重，不列已公开的应用（它们的通知总是展示）。
+ *
  * @param apps 全部已安装条目（不经模式筛选），顺序即当前桌面顺序。
  */
 @Composable
-internal fun PublicAppPickerPage(apps: List<AppInfo>, onBack: () -> Unit) {
+internal fun PublicAppPickerPage(
+    apps: List<AppInfo>,
+    onBack: () -> Unit,
+    purpose: AppPickerPurpose = AppPickerPurpose.PUBLIC_APPS,
+) {
     val context = LocalContext.current
     val runtime = remember(context) { SurfaceRuntime.get(context) }
     val scope = rememberCoroutineScope()
     val style = LauncherTheme.style
 
     var draft by remember { mutableStateOf<Set<String>?>(null) }
-    LaunchedEffect(runtime) { draft = runtime.disguisePublicApps() }
+    var publicSnapshot by remember { mutableStateOf<Set<String>?>(null) }
+    LaunchedEffect(runtime, purpose) {
+        val publicApps = runtime.disguisePublicApps()
+        publicSnapshot = publicApps
+        draft = when (purpose) {
+            AppPickerPurpose.PUBLIC_APPS -> publicApps
+            AppPickerPurpose.NOTIFICATION_ALLOW -> runtime.disguiseNotificationAllowedApps()
+        }
+    }
     var query by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf(PublicAppSort.DESKTOP) }
     var selectedSnapshot by remember { mutableStateOf<Set<String>>(emptySet()) }
     var saving by remember { mutableStateOf(false) }
 
-    val candidates by produceState(initialValue = emptyList<PublicAppCandidate>(), apps) {
+    val candidates by produceState(initialValue = emptyList<PublicAppCandidate>(), apps, purpose, publicSnapshot) {
+        val publicApps = publicSnapshot ?: return@produceState
         value = withContext(Dispatchers.Default) {
             val latin = HanLatin.create()
             apps.filterNot { it.isBuiltInSettingsEntry || it.isFolder }
+                .let { list ->
+                    when (purpose) {
+                        AppPickerPurpose.PUBLIC_APPS -> list
+                        AppPickerPurpose.NOTIFICATION_ALLOW -> list
+                            .filterNot { PublicAppRules.isPackagePublic(it.packageName, publicApps, context.packageName) }
+                            .distinctBy { it.packageName }
+                    }
+                }
                 .mapIndexed { index, app ->
                     PublicAppCandidate(
-                        key = app.componentKey,
+                        key = purpose.keyOf(app),
                         label = app.label,
                         packageName = app.packageName,
                         desktopIndex = index,
@@ -85,7 +110,7 @@ internal fun PublicAppPickerPage(apps: List<AppInfo>, onBack: () -> Unit) {
                 }
         }
     }
-    val iconByKey = remember(apps) { apps.associate { it.componentKey to it } }
+    val iconByKey = remember(apps, purpose) { apps.reversed().associateBy(purpose::keyOf) }
     val collator = remember { Collator.getInstance() }
     val selected = draft.orEmpty()
     val shown = remember(candidates, query, sort, selectedSnapshot) {
@@ -95,9 +120,9 @@ internal fun PublicAppPickerPage(apps: List<AppInfo>, onBack: () -> Unit) {
     val selectedCount = selected.count { it in candidateKeys }
 
     FfluePageScaffold(
-        stateKey = "public_apps",
-        title = stringResource(R.string.surface_public_apps_title),
-        subtitle = stringResource(R.string.surface_public_apps_subtitle),
+        stateKey = purpose.stateKey,
+        title = stringResource(purpose.titleRes),
+        subtitle = stringResource(purpose.subtitleRes),
         onBack = onBack,
         bottomBar = {
             FlueOutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) {
@@ -109,7 +134,12 @@ internal fun PublicAppPickerPage(apps: List<AppInfo>, onBack: () -> Unit) {
                     if (saving) return@FlueButton
                     saving = true
                     scope.launch {
-                        val ok = runCatching { runtime.savePublicApps(toSave) }.isSuccess
+                        val ok = runCatching {
+                            when (purpose) {
+                                AppPickerPurpose.PUBLIC_APPS -> runtime.savePublicApps(toSave)
+                                AppPickerPurpose.NOTIFICATION_ALLOW -> runtime.saveNotificationAllowedApps(toSave)
+                            }
+                        }.isSuccess
                         saving = false
                         if (ok) {
                             onBack()
@@ -199,6 +229,21 @@ internal fun PublicAppPickerPage(apps: List<AppInfo>, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+internal enum class AppPickerPurpose(val stateKey: String, val titleRes: Int, val subtitleRes: Int) {
+    PUBLIC_APPS("public_apps", R.string.surface_public_apps_title, R.string.surface_public_apps_subtitle),
+    NOTIFICATION_ALLOW(
+        "notification_allowed_apps",
+        R.string.surface_notification_allow_title,
+        R.string.surface_notification_allow_subtitle,
+    ),
+    ;
+
+    fun keyOf(app: AppInfo): String = when (this) {
+        PUBLIC_APPS -> app.componentKey
+        NOTIFICATION_ALLOW -> app.packageName
     }
 }
 

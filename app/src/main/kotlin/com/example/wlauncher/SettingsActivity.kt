@@ -346,6 +346,7 @@ enum class SettingsDestination {
     AGENT,
     SURFACE,
     PUBLIC_APPS,
+    NOTIFICATION_ALLOWED_APPS,
     ABOUT_OVERRIDES,
     ABOUT_FFLUE,
     WATCH_FACE_MORE,
@@ -1914,12 +1915,21 @@ private fun SettingsRootScreen(
                 onOpenScreenFit = { navigateTo(SettingsDestination.SCREEN_FIT) },
                 onOpenPublicApps = { navigateTo(SettingsDestination.PUBLIC_APPS) },
                 onOpenAboutOverrides = { navigateTo(SettingsDestination.ABOUT_OVERRIDES) },
+                onOpenNotificationApps = { navigateTo(SettingsDestination.NOTIFICATION_ALLOWED_APPS) },
             )
             SettingsDestination.ABOUT_OVERRIDES ->
                 com.flue.launcher.surface.publicsettings.AboutOverridesPage(onBack = { handleBack() })
             SettingsDestination.PUBLIC_APPS -> {
                 val catalogApps by vm.catalogApps.collectAsStateWithLifecycle()
                 com.flue.launcher.surface.ui.PublicAppPickerPage(apps = catalogApps, onBack = { handleBack() })
+            }
+            SettingsDestination.NOTIFICATION_ALLOWED_APPS -> {
+                val catalogApps by vm.catalogApps.collectAsStateWithLifecycle()
+                com.flue.launcher.surface.ui.PublicAppPickerPage(
+                    apps = catalogApps,
+                    onBack = { handleBack() },
+                    purpose = com.flue.launcher.surface.ui.AppPickerPurpose.NOTIFICATION_ALLOW,
+                )
             }
             SettingsDestination.SCREEN_FIT -> ScreenFitPage(
                 onBack = { handleBack() },

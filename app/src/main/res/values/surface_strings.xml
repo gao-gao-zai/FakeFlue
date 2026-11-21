@@ -126,4 +126,11 @@
     <string name="about_fflue_title">关于 FFlue</string>
     <string name="about_fflue_subtitle">版本、作者、社区与致谢</string>
     <string name="search_d_device_about">系统、设备、存储、内存、电池信息</string>
+    <string name="surface_widget_target_blocked">这个小组件要打开的内容当前不可用</string>
+    <string name="surface_notification_open_blocked">该通知暂时无法从这里打开</string>
+    <string name="surface_notification_allow_title">通知显示</string>
+    <string name="surface_notification_allow_subtitle">未公开的应用默认不显示通知；在这里选择仍要显示通知的应用。只影响显示，点开前还需要验证。</string>
+    <string name="surface_notification_allow_entry_sub">另外显示 %1$d 个应用的通知</string>
+    <string name="surface_screen_off_keep_app_title">熄屏后继续原应用</string>
+    <string name="surface_screen_off_keep_app_sub">关闭时，在其他应用里熄屏后，下次亮屏回到表盘（通话中除外）</string>
 </resources>

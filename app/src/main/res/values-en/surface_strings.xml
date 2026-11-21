@@ -126,4 +126,11 @@
     <string name="about_fflue_title">About FFlue</string>
     <string name="about_fflue_subtitle">Version, author, community and credits</string>
     <string name="search_d_device_about">System, device, storage, memory and battery information</string>
+    <string name="surface_widget_target_blocked">What this widget tries to open isn\'t available right now</string>
+    <string name="surface_notification_open_blocked">This notification can\'t be opened from here right now</string>
+    <string name="surface_notification_allow_title">Notification display</string>
+    <string name="surface_notification_allow_subtitle">Apps that aren\'t public hide their notifications by default. Pick apps whose notifications should still show. This only affects display; opening them still needs verification.</string>
+    <string name="surface_notification_allow_entry_sub">Also showing notifications from %1$d apps</string>
+    <string name="surface_screen_off_keep_app_title">Keep app after screen off</string>
+    <string name="surface_screen_off_keep_app_sub">When off, turning the screen off inside another app returns to the watch face on next wake (except during calls)</string>
 </resources>
