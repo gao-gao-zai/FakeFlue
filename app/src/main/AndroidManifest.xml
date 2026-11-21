@@ -249,6 +249,45 @@
             </intent-filter>
         </receiver>
 
+        <!-- R34 快速进入伪装：外部 Intent、磁贴、按键都落到这里，再走统一门槛；不读 extras。 -->
+        <activity
+            android:name="com.flue.launcher.surface.entry.QuickEntryActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="com.gaozai.surface.action.ENTER_DISGUISE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name="com.flue.launcher.surface.entry.DisguiseTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_monochrome"
+            android:label="@string/surface_quick_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- R34 实体按键：单独的无障碍服务，只观察用户配置的那个键，不拦截。 -->
+        <service
+            android:name="com.flue.launcher.surface.entry.QuickKeyService"
+            android:exported="true"
+            android:label="@string/surface_quick_key_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/fflue_quick_key_service" />
+        </service>
+
         <!-- R18 首次使用路径：欢迎 → 选择模式 → 默认桌面引导。只由本应用启动。 -->
         <activity
             android:name="com.flue.launcher.surface.onboarding.SurfaceOnboardingActivity"
