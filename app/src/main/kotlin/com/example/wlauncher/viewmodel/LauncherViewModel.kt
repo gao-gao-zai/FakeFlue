@@ -1803,7 +1803,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         ) {
             return
         }
-        if (!appInfo.isAppListShortcut && appInfo.packageName == getApplication<Application>().packageName) {
+        // R31：本应用的内置工具页面可以从应用列表打开。
+        val builtInTool = com.flue.launcher.surface.tools.SurfaceToolCatalog.isToolComponentKey(appInfo.componentKey)
+        if (!appInfo.isAppListShortcut && !builtInTool && appInfo.packageName == getApplication<Application>().packageName) {
             Toast.makeText(getApplication(), "已阻止启动自身应用", Toast.LENGTH_SHORT).show()
             return
         }
@@ -1812,7 +1814,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             ExternalLaunchRequest(
                 targetKey = appInfo.componentKey,
                 expectedPackage = appInfo.packageName.takeIf {
-                    !appInfo.isBuiltInSettingsEntry && it.isNotBlank()
+                    !appInfo.isBuiltInSettingsEntry && !builtInTool && it.isNotBlank()
                 },
                 sourceState = returnState,
                 origin = origin.toNormalizedPoint(),

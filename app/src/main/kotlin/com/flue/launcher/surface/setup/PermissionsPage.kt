@@ -70,6 +70,16 @@ object PermissionProbe {
                 of(context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context))
             PermissionItem.DND_ACCESS ->
                 of(context.getSystemService(NotificationManager::class.java)?.isNotificationPolicyAccessGranted == true)
+            PermissionItem.POST_NOTIFICATIONS -> of(
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                    granted(context, Manifest.permission.POST_NOTIFICATIONS) == PermissionStatus.GRANTED) &&
+                    NotificationManagerCompat.from(context).areNotificationsEnabled(),
+            )
+            PermissionItem.EXACT_ALARM -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                of(context.getSystemService(android.app.AlarmManager::class.java)?.canScheduleExactAlarms() == true)
+            } else {
+                PermissionStatus.NOT_APPLICABLE
+            }
             PermissionItem.LOCATION -> granted(context, Manifest.permission.ACCESS_COARSE_LOCATION)
             PermissionItem.CALENDAR -> granted(context, Manifest.permission.READ_CALENDAR)
             PermissionItem.ACTIVITY -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -115,6 +125,13 @@ object PermissionProbe {
             PermissionItem.WRITE_SETTINGS -> Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, pkg)
             PermissionItem.NOTIFICATION_LISTENER -> Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             PermissionItem.DND_ACCESS -> Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+            PermissionItem.POST_NOTIFICATIONS ->
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            PermissionItem.EXACT_ALARM -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, pkg)
+            } else {
+                null
+            }
             PermissionItem.SHIZUKU -> context.packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE)
             else -> null
         }
@@ -123,6 +140,11 @@ object PermissionProbe {
     fun runtimePermissions(item: PermissionItem): Array<String>? = when (item) {
         PermissionItem.LOCATION -> arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
         PermissionItem.CALENDAR -> arrayOf(Manifest.permission.READ_CALENDAR)
+        PermissionItem.POST_NOTIFICATIONS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            null
+        }
         PermissionItem.ACTIVITY -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             arrayOf(Manifest.permission.ACTIVITY_RECOGNITION)
         } else {
@@ -147,6 +169,8 @@ internal fun PermissionItem.labelRes(): Int = when (this) {
     PermissionItem.WRITE_SETTINGS -> R.string.surface_perm_write_settings
     PermissionItem.NOTIFICATION_LISTENER -> R.string.surface_perm_notification_listener
     PermissionItem.DND_ACCESS -> R.string.surface_perm_dnd
+    PermissionItem.POST_NOTIFICATIONS -> R.string.surface_tool_perm_notifications
+    PermissionItem.EXACT_ALARM -> R.string.surface_tool_perm_exact_alarm
     PermissionItem.LOCATION -> R.string.surface_perm_location
     PermissionItem.CALENDAR -> R.string.surface_perm_calendar
     PermissionItem.ACTIVITY -> R.string.surface_perm_activity
@@ -194,10 +218,13 @@ internal fun PermissionsPage(
             }
             return
         }
-        PermissionProbe.runtimePermissions(item)?.let {
-            runtimeRequest.launch(it)
-            return
-        }
+        // 运行时权限已给但仍未生效（例如通知在系统里被关）时改开对应系统页，不反复弹已通过的请求。
+        PermissionProbe.runtimePermissions(item)
+            ?.takeUnless { perms -> perms.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED } }
+            ?.let {
+                runtimeRequest.launch(it)
+                return
+            }
         val intent = PermissionProbe.settingsIntent(context, item)
         val opened = intent != null && runCatching { context.startActivity(intent) }.isSuccess
         if (!opened) {

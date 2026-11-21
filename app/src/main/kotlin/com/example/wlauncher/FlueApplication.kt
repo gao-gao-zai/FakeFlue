@@ -47,6 +47,10 @@ class FlueApplication : Application() {
         repositories.applicationScope.launch {
             RecentsVisibility.warmUp(this@FlueApplication)
         }
+        // R31：闹钟、计时器从持久状态恢复系统登记（进程被杀或强停后），补发错过的提醒各一次。
+        repositories.applicationScope.launch {
+            com.flue.launcher.surface.tools.ToolAlerts.reconcile(this@FlueApplication)
+        }
     }
 
     companion object {

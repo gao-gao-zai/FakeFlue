@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R31 内置工具图标底色。 -->
+<resources>
+    <color name="ic_surface_tool_battery_background">#34C759</color>
+    <color name="ic_surface_tool_alarm_background">#FF9F0A</color>
+    <color name="ic_surface_tool_timer_background">#FF6A3D</color>
+    <color name="ic_surface_tool_stopwatch_background">#0A84FF</color>
+    <color name="ic_surface_tool_calculator_background">#8E8E93</color>
+</resources>
