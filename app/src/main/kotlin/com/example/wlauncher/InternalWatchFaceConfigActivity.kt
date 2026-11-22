@@ -83,12 +83,15 @@ import com.flue.launcher.util.RecentsVisibility
 import com.flue.launcher.viewmodel.LauncherViewModel
 import com.flue.launcher.watchface.BUILT_IN_PHOTO_WATCHFACE_ID
 import com.flue.launcher.watchface.BuiltInWatchFaceOptions
-import com.flue.launcher.watchface.InternalWatchFaceStorage
+import com.flue.launcher.surface.SurfaceRuntime
+import com.flue.launcher.surface.config.ConfigScopePin
 import com.flue.launcher.watchface.WatchClockColorMode
 import com.flue.launcher.watchface.WatchClockPosition
 import com.flue.launcher.watchface.WatchFaceClockStyle
 import com.flue.launcher.watchface.WatchFaceMd3eShape
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 const val EXTRA_INTERNAL_WATCHFACE_ID = "internal_watchface_id"
@@ -120,6 +123,7 @@ private fun InternalWatchFaceConfigScreen(
     onBack: () -> Unit
 ) {
     val vm: LauncherViewModel = viewModel()
+    val scope = rememberCoroutineScope()
     val application = vm.getApplication<Application>()
     val launcherStyle = LauncherTheme.style
     val photoPath by vm.builtInPhotoPath.collectAsStateWithLifecycle()
@@ -236,7 +240,6 @@ private fun InternalWatchFaceConfigScreen(
 
     fun persistPendingChanges() {
         if (isPhoto) {
-            if (localPath != photoPath) vm.setBuiltInPhotoPath(localPath)
             if (localClockPosition != photoClockPosition) vm.setBuiltInPhotoClockPosition(localClockPosition)
             if (localClockSize.toInt() != photoClockSize) vm.setBuiltInPhotoClockSize(localClockSize.toInt())
             if (localClockBold != photoClockBold) vm.setBuiltInPhotoClockBold(localClockBold)
@@ -253,7 +256,6 @@ private fun InternalWatchFaceConfigScreen(
             if (localShowSeconds != photoShowSeconds) vm.setBuiltInPhotoShowSeconds(localShowSeconds)
             if (localCustomText != photoCustomText) vm.setBuiltInPhotoCustomText(localCustomText)
         } else {
-            if (localPath != videoPath) vm.setBuiltInVideoPath(localPath)
             if (localClockPosition != videoClockPosition) vm.setBuiltInVideoClockPosition(localClockPosition)
             if (localClockSize.toInt() != videoClockSize) vm.setBuiltInVideoClockSize(localClockSize.toInt())
             if (localClockBold != videoClockBold) vm.setBuiltInVideoClockBold(localClockBold)
@@ -276,40 +278,28 @@ private fun InternalWatchFaceConfigScreen(
 
     val picker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
         if (uri != null) {
-            val savedPath = handlePickedMedia(
-                application = application,
-                watchFaceId = watchFaceId,
-                sourceUri = uri,
-                onMessage = { message ->
-                    Toast.makeText(application, message, Toast.LENGTH_SHORT).show()
-                }
-            )
-            if (!savedPath.isNullOrBlank()) {
-                localPath = savedPath
-                if (isPhoto) {
-                    vm.setBuiltInPhotoPath(savedPath)
-                } else {
-                    vm.setBuiltInVideoPath(savedPath)
-                }
+            val pin = ConfigScopePin(SurfaceRuntime.get(application).controller.configScope.value)
+            scope.launch(pin) {
+                handlePickedMedia(
+                    vm = vm,
+                    watchFaceId = watchFaceId,
+                    sourceUri = uri,
+                    onMessage = { message -> Toast.makeText(application, message, Toast.LENGTH_SHORT).show() },
+                )
             }
         }
     }
     val fontPicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
         if (uri != null) {
-            val savedPath = InternalWatchFaceStorage.copyFont(application, uri)
-            if (savedPath.isNullOrBlank()) {
-                Toast.makeText(
-                    application,
-                    application.getString(R.string.internal_watchface_font_save_failed),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            } else {
-                vm.setBuiltInWatchFaceFontPath(savedPath)
-                Toast.makeText(
-                    application,
-                    application.getString(R.string.internal_watchface_font_updated),
-                    Toast.LENGTH_SHORT,
-                ).show()
+            val pin = ConfigScopePin(SurfaceRuntime.get(application).controller.configScope.value)
+            scope.launch(pin) {
+                val result = vm.importBuiltInWatchFaceFont(uri)
+                val message = if (result.isSuccess) {
+                    R.string.internal_watchface_font_updated
+                } else {
+                    R.string.internal_watchface_font_save_failed
+                }
+                Toast.makeText(application, application.getString(message), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -317,17 +307,14 @@ private fun InternalWatchFaceConfigScreen(
         if (result.resultCode != RESULT_OK) return@rememberLauncherForActivityResult
         val uriText = result.data?.getStringExtra(EXTRA_FILE_MANAGER_RESULT_URI).orEmpty()
         val uri = uriText.takeIf { it.isNotBlank() }?.let(Uri::parse) ?: return@rememberLauncherForActivityResult
-        val savedPath = handlePickedMedia(
-            application = application,
-            watchFaceId = watchFaceId,
-            sourceUri = uri,
-            onMessage = { message ->
-                Toast.makeText(application, message, Toast.LENGTH_SHORT).show()
-            }
-        )
-        if (!savedPath.isNullOrBlank()) {
-            localPath = savedPath
-            if (isPhoto) vm.setBuiltInPhotoPath(savedPath) else vm.setBuiltInVideoPath(savedPath)
+        val pin = ConfigScopePin(SurfaceRuntime.get(application).controller.configScope.value)
+        scope.launch(pin) {
+            handlePickedMedia(
+                vm = vm,
+                watchFaceId = watchFaceId,
+                sourceUri = uri,
+                onMessage = { message -> Toast.makeText(application, message, Toast.LENGTH_SHORT).show() },
+            )
         }
     }
 
@@ -337,7 +324,6 @@ private fun InternalWatchFaceConfigScreen(
     }
 
     val scrollState = rememberScrollState()
-    val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -734,7 +720,6 @@ private fun InternalWatchFaceConfigScreen(
             ),
             enabled = !localPath.isNullOrBlank()
         ) {
-            localPath = null
             if (isPhoto) {
                 vm.setBuiltInPhotoPath(null)
             } else {
@@ -797,31 +782,33 @@ private fun ActionButton(
     }
 }
 
-private fun handlePickedMedia(
-    application: Application,
+private suspend fun handlePickedMedia(
+    vm: LauncherViewModel,
     watchFaceId: String,
     sourceUri: Uri,
     onMessage: (String) -> Unit
-): String? {
-    val context = application
-    runCatching {
-        context.contentResolver.takePersistableUriPermission(
-            sourceUri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
+) {
+    val context = vm.getApplication<Application>()
+    withContext(Dispatchers.IO) {
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                sourceUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
     }
-    val savedPath = if (watchFaceId == BUILT_IN_PHOTO_WATCHFACE_ID) {
-        InternalWatchFaceStorage.copyPhoto(context, sourceUri)
+    val result = if (watchFaceId == BUILT_IN_PHOTO_WATCHFACE_ID) {
+        vm.importBuiltInPhoto(sourceUri)
     } else {
-        InternalWatchFaceStorage.copyVideo(context, sourceUri)
+        vm.importBuiltInVideo(sourceUri)
     }
+    val savedPath = result.getOrNull()
 
     if (savedPath.isNullOrBlank()) {
         onMessage(context.getString(R.string.internal_watchface_media_save_failed))
-        return null
+        return
     }
     onMessage(context.getString(R.string.internal_watchface_media_updated))
-    return savedPath
 }
 @Composable
 private fun ClockStylePickerRow(

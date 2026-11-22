@@ -37,15 +37,15 @@ P7 的三个叠加 PR 已完成合并，下面保留原分工供追溯。
 
 ## 3. 下一步要做的事
 
-1. **完善签名 Release CI 与 R8 验证（用户已授权）。**
+1. **签名 Release 流程已实现，用户本轮选择保留本地签名构建。**
    - 用户已选择新建发布密钥，并要求保存加密密钥库与签名 APK。新签名与旧版签名的覆盖升级兼容性需分别处理。
    - `.github/workflows/android-ci.yml` 已增加 Release 任务。手动触发时勾选 `build_release`，或推送 `v*` 标签，先等待 unit 通过。手动选项默认关闭，保留原有手动测试入口。
    - 从 Secrets 解码密钥库到 `$RUNNER_TEMP`，执行 `assembleRelease` 并保留 R8 混淆，再用 `apksigner verify --print-certs` 校验。
    - 缺少签名配置时失败。结束时清理临时密钥文件，产物包含签名 APK 与 `mapping.txt`。
    - GitHub 配置名为 `FLUE_RELEASE_KEYSTORE_B64`、`FLUE_SIGNING_STORE_PASSWORD`、`FLUE_SIGNING_KEY_ALIAS`、`FLUE_SIGNING_KEY_PASSWORD`。
    - `app/build.gradle.kts` 已支持 `FLUE_SIGNING_STORE_FILE` 等环境变量。密钥与口令通过用户授权的安全方式配置或交付。
-   - **本地验证通过。** `assembleRelease` 已完成 R8 混淆。随后执行工作流中的实际签名步骤，APK 的包名为 `com.gaozai.surface`、版本为 `2.3.3 / 28`；`apksigner` 校验通过，证书 SHA-256 与新密钥库导出的证书一致，`mapping.txt` 非空，临时密钥库已删除。Actionlint 与 9 项脚本失败处理、清理检查均通过。GitHub Secrets 列表和公钥接口返回 403，远端 Secrets 配置与 Release 任务端到端运行仍待有权限的账号完成。
-2. **继续维护交接记录。** 远端签名任务完成后补充公开 CI 证据，只记录结论与公开证书信息。
+   - **本地验证通过。** `assembleRelease` 已完成 R8 混淆。随后执行工作流中的实际签名步骤，APK 的包名为 `com.gaozai.surface`、版本为 `2.3.3 / 28`；`apksigner` 校验通过，证书 SHA-256 与新密钥库导出的证书一致，`mapping.txt` 非空，临时密钥库已删除。Actionlint 与 9 项脚本失败处理、清理检查均通过。GitHub Secrets 列表和公钥接口返回 403，用户已选择暂时保留本地签名，远端 Secrets 配置与正式签名任务端到端运行留待后续启用。PR #15 的单元与 API 30 模拟器检查已通过，并已 squash 合并为 `cb5e9265edc1fadbd272395c6fc447123875bb9c`。
+2. **普通媒体保护与 Release 模拟器验收已实现。** 图片、视频、字体和背景采用新文件写入、真实设置提交、旧引用清理的顺序，普通替换与备份媒体阶段共用互斥；背景按字段和模式防抖，保留最新路径。新增 API 30 R8 Release UI 验收使用临时测试签名，实际发布身份保持本地密钥。独立 `release-smoke` 模块打包测试框架和 Kotlin 运行库，并共享两份不引用应用实现的冒烟测试源码，避免 Debug 测试包省略共享依赖后无法运行于 R8 应用。本地全量单元测试已完成，共 2229 项，0 失败，5 项因缺少本地样本跳过；Debug APK 与仪器测试 APK 均构建通过。Actions 的 Debug 与 R8 Release 模拟器结果以 [PR #16 的检查记录](https://github.com/gao-gao-zai/FakeFlue/pull/16/checks) 为准。Release 首轮验收 3 项，外部 force-stop 后冷启动恢复验收 1 项；调试套件继续独立执行。
 3. **真机验收（用户说过“不要实际测”，只能整理出来交给用户）：**
    - 启动计时：按 `docs/validation/2026-11-21-startup-timing.md` 填表，需要和原版 Flue 在同一台手表上实测。
    - P5：Root 导航守护。
@@ -53,16 +53,10 @@ P7 的三个叠加 PR 已完成合并，下面保留原分工供追溯。
    - R36：缓存实际提速多少。
    - R37：Android 9–11 上的表现。
 4. **一直缺的输入：**
-   - 旧 FFlue 的数据格式：R37 的数据迁移和 R30 的旧手势恢复都要用。
+   - 用户确认暂无旧版备份或 APK 样本。R37 旧数据迁移和 R30 旧手势恢复的历史格式兼容验证等待样本。
    - 旧版 versionCode 仍待确认，当前保持占位值 28；用户已选择新的发布签名身份。
-5. **待用户决定：**
-   - 存储的模式读不出时，现在回到完整模式，属于 fail-open。
-   - 常规表盘媒体替换时，旧文件仍在新路径写进设置之前清理，`InternalWatchFaceStorage.copy*` 保留了原调用约定。
-6. **旧环境工作树清理待复核。** 旧交接记录了以下 Claude 临时工作树，当前云环境中的存在情况与锁定状态尚未核实。
-   - `.claude/worktrees/agent-a2c96c506956c6824`
-   - `.claude/worktrees/agent-aaf7d10596a313351`
-
-   清理时先核对实际工作树、未提交文件及本地提交。P7 已完成合并。
+5. **模式恢复策略已由用户确认。** 无法读取桌面模式时回到完整模式。本轮已修复错类型模式值的恢复，并通过 5 项真实 SharedPreferences 回归。
+6. **旧环境工作树已核实。** 旧交接中的两个 `.claude/worktrees/agent-*` 路径在当前云环境均不存在，也无对应 Git worktree 注册。当前保留主工作树与用户创建的三个 P7 工作树。
 
 ## 4. 构建与测试
 
@@ -124,7 +118,7 @@ def edit(p, pairs):
 - 不要杀其他用户（ctyun）的进程。
 - 不做真机测试。CI 模拟器只有 Android 11。
 - 签名身份确认后再落实 Release 签名配置，versionCode 仍为占位值 28。
-- 不要自己定时轮询 CI。
+- 用户本轮明确要求完成 Actions 模拟器验收，可跟踪本轮验证至结束；持续后台定时监控另行约定。
 
 ## 7. P7 各块的要点（细节见各 PR 描述）
 

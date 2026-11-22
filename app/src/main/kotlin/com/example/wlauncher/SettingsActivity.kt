@@ -193,7 +193,6 @@ import com.flue.launcher.applist.background.AppListBackgroundConfig
 import com.flue.launcher.ui.common.FlueImageCropOverlay
 import com.flue.launcher.applist.background.AppListBackgroundMode
 import com.flue.launcher.applist.background.AppListBackgroundPreviewCard
-import com.flue.launcher.applist.background.cropAndStoreAppListBackground
 import com.flue.launcher.applist.background.rememberAppListBackgroundPainting
 import com.flue.launcher.ui.common.MAX_OVERLAY_MASK_CORNER_RADIUS_DP
 import com.flue.launcher.ui.common.bottomFisheyeScale
@@ -250,7 +249,7 @@ import com.flue.launcher.viewmodel.LauncherViewModel
 import com.flue.launcher.watchface.BUILT_IN_PHOTO_WATCHFACE_ID
 import com.flue.launcher.watchface.BUILT_IN_VIDEO_WATCHFACE_ID
 import com.flue.launcher.watchface.BuiltInWatchFaceOptions
-import com.flue.launcher.watchface.InternalWatchFaceStorage
+import com.flue.launcher.surface.config.ConfigScopePin
 import com.flue.launcher.watchface.WatchFaceDescriptor
 import com.flue.launcher.watchface.standard.WatchDateLocale
 import com.flue.launcher.watchface.standard.WatchTemperatureUnit
@@ -894,12 +893,11 @@ private fun SettingsRootScreen(
     }
     val fontPicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
         if (uri != null) {
-            val savedPath = InternalWatchFaceStorage.copyFont(context, uri)
-            if (savedPath.isNullOrBlank()) {
-                Toast.makeText(context, context.getString(R.string.toast_font_save_failed), Toast.LENGTH_SHORT).show()
-            } else {
-                vm.setBuiltInWatchFaceFontPath(savedPath)
-                Toast.makeText(context, context.getString(R.string.toast_font_updated), Toast.LENGTH_SHORT).show()
+            val pin = ConfigScopePin(SurfaceRuntime.get(context).controller.configScope.value)
+            settingsScope.launch(pin) {
+                val result = vm.importBuiltInWatchFaceFont(uri)
+                val message = if (result.isSuccess) R.string.toast_font_updated else R.string.toast_font_save_failed
+                Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -1294,22 +1292,15 @@ private fun SettingsRootScreen(
             onCancel = { appListBackgroundCropUri = null },
             onConfirm = { sourceRect ->
                 appListBackgroundCropUri = null
-                settingsScope.launch {
-                    val savedPath = cropAndStoreAppListBackground(
-                        context = context,
-                        uri = pendingUri,
-                        sourceRect = sourceRect,
-                        previousPath = appListBackground.imagePath,
-                    )
-                    if (savedPath.isNullOrBlank()) {
+                val pin = ConfigScopePin(SurfaceRuntime.get(context).controller.configScope.value)
+                settingsScope.launch(pin) {
+                    val result = vm.importAppListBackground(pendingUri, sourceRect)
+                    if (result.isFailure) {
                         Toast.makeText(
                             context,
                             context.getString(R.string.toast_app_list_background_save_failed),
                             Toast.LENGTH_SHORT,
                         ).show()
-                    } else {
-                        vm.setAppListBackgroundImagePath(savedPath)
-                        vm.setAppListBackgroundMode(AppListBackgroundMode.CUSTOM_IMAGE)
                     }
                 }
             },
