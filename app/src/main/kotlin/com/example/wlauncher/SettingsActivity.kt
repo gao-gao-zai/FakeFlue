@@ -5,6 +5,7 @@ import com.flue.launcher.surface.access.FeatureAccessPolicy
 import com.flue.launcher.surface.access.SurfaceFeature
 import com.flue.launcher.surface.ui.SurfaceModeSettingsPage
 import com.flue.launcher.surface.ui.ScreenFitPage
+import com.flue.launcher.surface.ui.SettingsPageFrame
 import com.flue.launcher.surface.ui.SafeAreaCalibrationPage
 import com.flue.launcher.surface.ui.AppDpiCalibrationPage
 import com.flue.launcher.surface.display.DisplayAdaptation
@@ -95,6 +96,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -162,6 +165,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -5741,14 +5745,13 @@ private fun SettingsPageScaffold(
 
     val rotaryScrollMultiplier = ROTARY_SCROLL_MULTIPLIER
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    SettingsPageFrame(onBack = onBack) { safeDrawingPadding ->
         val screenHeightPx = constraints.maxHeight.toFloat()
         val screenCenterY = screenHeightPx / 2f
         // 圆屏弦宽适配要用视口全宽当直径。靠 CompositionLocal 下发而不是加
         // 参数：itemFisheye 有 200+ 调用点，加参数等于逐个改一遍。
         val screenWidthPx = constraints.maxWidth.toFloat()
         val leftSafeInset = maxWidth * (leftSafeInsetPercent.coerceIn(0, 50) / 100f)
-        val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
         var chordListTopInRoot by remember { mutableFloatStateOf(0f) }
         var chordScreenCenterY by remember { mutableFloatStateOf(screenCenterY) }
         val horizontalContentPadding = if (settingsRoundScreen) 26.dp else 16.dp
@@ -5885,7 +5888,7 @@ private fun SettingsPageScaffold(
             // Keep a single scrollable top/bottom inset; the old modifier padding + bottom
             // contentPadding + tail spacer stacked into permanent empty bands.
             contentPadding = PaddingValues(
-                start = horizontalContentPadding + leftSafeInset,
+                start = horizontalContentPadding + leftSafeInset + safeDrawingPadding.calculateStartPadding(LocalLayoutDirection.current),
                 // 圆屏那条分支单独取值、不再叠 safeDrawing：半屏留白本来就远大于
                 // 任何系统 inset，叠上去只会把首项顶得偏离屏幕中心。
                 top = if (settingsRoundScreen) {
@@ -5893,7 +5896,7 @@ private fun SettingsPageScaffold(
                 } else {
                     safeDrawingPadding.calculateTopPadding() + topContentPadding
                 },
-                end = horizontalContentPadding,
+                end = horizontalContentPadding + safeDrawingPadding.calculateEndPadding(LocalLayoutDirection.current),
                 // 行距改由每行自己出（见 FlueSettingsListScope）之后，末行也带着一份，
                 // 所以这里扣掉同样的一份 —— 底部总留白与改动前一致。
                 bottom = (
