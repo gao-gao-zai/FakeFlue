@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.fillMaxSize
 import com.flue.launcher.R
+import com.flue.launcher.data.readBytesBounded
 import com.flue.launcher.watchface.WatchFaceDescriptor
 import com.flue.launcher.ui.anim.createLegacyPrebuiltBlur
 import com.flue.launcher.ui.common.isFlueScreenRound
@@ -59,6 +60,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.flue.launcher.watchface.standard.prepared.WatchPreparedManifestEntry
+import com.flue.launcher.watchface.standard.prepared.WatchPreparedStatic
+import com.flue.launcher.watchface.standard.prepared.WatchmakerPreparedCache
+import com.flue.launcher.watchface.standard.prepared.watchPreparedScopeDigest
+import com.flue.launcher.watchface.standard.prepared.watchPreparedValidationDigest
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.security.MessageDigest
 import java.util.Calendar
@@ -4938,7 +4945,10 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
         val watchXml = File(canonicalRoot, "watch.xml").takeIf(File::isFile)
             ?: canonicalRoot.walkTopDown().firstOrNull { it.isFile && it.name.equals("watch.xml", true) }
             ?: error(".watch 表盘缺少 watch.xml")
-        val definition = WatchmakerDefinitionParser().parse(watchXml)
+        // R36：watch.xml 只读一次。修订摘要与（未命中时的）解析用同一份字节，持久缓存里
+        // 才不可能出现「新摘要配旧模型」。超限时交给原解析器抛出原来的错误。
+        val watchXmlBytes = readWatchXmlBytes(watchXml)
+        val preparedCache = WatchmakerPreparedCache.forInstalledRoot(context, canonicalRoot)
         val rootCacheKey = canonicalRoot.absolutePath
         val watchDirectoryKey = (watchXml.parentFile ?: canonicalRoot)
             .relativeTo(canonicalRoot)
@@ -4974,15 +4984,7 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
         // quantum and may keep the same byte length. Hash bounded executable/
         // definition content so refreshes cannot be missed without re-reading
         // every image/font/movie asset.
-        watchXml.inputStream().buffered().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                sourceDigest.update(buffer, 0, count)
-            }
-        }
-        val renderPlanResult = buildWatchLayerRenderPlanResult(definition.layers)
+        sourceDigest.update(watchXmlBytes)
         val initialScriptFile = files.firstOrNull { file ->
             file.relativeTo(canonicalRoot).invariantSeparatorsPath.equals("scripts/script.txt", true)
         }?.takeIf { file -> file.length() in 1..MAX_INITIAL_SCRIPT_BYTES }
@@ -4996,11 +4998,10 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
             )
             sourceDigest.update(0.toByte())
         }
-        val bitmapFonts = buildBitmapFontIndex(canonicalRoot, files)
         // SVG XML and native Path construction are both bounded and happen on
         // the IO preparation dispatcher. The generation-gated PreparedSource
         // publishes immutable paths which are only read by the main thread.
-        val svgDocuments = HashMap<String, PreparedWatchSvgDocument<Path>>()
+        val svgSources = ArrayList<Pair<String, ByteArray>>()
         var svgBytes = 0L
         files.asSequence()
             .filter { it.extension.equals("svg", true) }
@@ -5033,16 +5034,61 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
                 // content inside a coarse filesystem timestamp quantum.
                 sourceDigest.update(bytes)
                 sourceDigest.update(0.toByte())
-                val document = runCatching {
-                    parseWatchSvgDocument(bytes.toString(Charsets.UTF_8))
-                }.getOrNull()
-                prepareWatchSvgDocument(document) { pathData ->
-                    runCatching { PathParser.createPathFromPathData(pathData) }.getOrNull()
-                }?.let { preparedDocument ->
-                    svgDocuments[resolved.cacheRevision] = preparedDocument
-                }
+                svgSources += resolved.key to bytes
             }
         val definitionRevision = sourceDigest.digest().joinToString("") { "%02x".format(it) }
+        // ── R36 持久准备缓存 ───────────────────────────────────────────────
+        // 命中校验 = 文件清单 + 内容摘要（definitionRevision 已含 XML/脚本/SVG 全文，
+        // 这里再补位图字体定义全文）。只缓存静态结果；位图、字体、Path、Lua 运行时、
+        // 实时数据与显示坐标下面仍按本次环境现建。
+        val bitmapFontSources = readBitmapFontSources(canonicalRoot, files)
+        val preparedManifest = files.map { file ->
+            WatchPreparedManifestEntry(
+                relativePath = file.relativeTo(canonicalRoot).invariantSeparatorsPath,
+                length = file.length(),
+                lastModifiedEpochMs = file.lastModified(),
+            )
+        }
+        val preparedValidation = watchPreparedValidationDigest(definitionRevision, bitmapFontSources)
+        val prepared: WatchPreparedStatic? = preparedCache?.let { cache ->
+            runCatching { cache.load(rootCacheKey, preparedManifest, preparedValidation) }.getOrNull()
+        }
+        val definition = prepared?.definition ?: WatchmakerDefinitionParser().parse(
+            ByteArrayInputStream(watchXmlBytes),
+            SecureWatchXmlParser.DEFAULT_MAX_BYTES,
+        )
+        val svgSourceDocuments: Map<String, WatchSvgDocument> = prepared?.svgDocuments
+            ?: LinkedHashMap<String, WatchSvgDocument>().also { parsed ->
+                svgSources.forEach { (relative, bytes) ->
+                    runCatching { parseWatchSvgDocument(bytes.toString(Charsets.UTF_8)) }
+                        .getOrNull()
+                        ?.let { parsed[relative] = it }
+                }
+            }
+        var bitmapFontSourcesUnchanged = true
+        val bitmapFontDefinitions: Map<String, WatchBitmapFont> = prepared?.bitmapFonts
+            ?: LinkedHashMap<String, WatchBitmapFont>().also { parsed ->
+                // 未命中时再逐文件读取并解析，不同时保留全部字体源码。解析所用字节再算一次
+                // 摘要，防止两次读取之间发生修改时把新模型按旧摘要发布进缓存。
+                val parsedValidation = watchPreparedValidationDigest(
+                    definitionRevision,
+                    bitmapFontSources.asSequence().onEach { (relative, text) ->
+                        runCatching { parseWatchBitmapFont(text) }.getOrNull()?.let { parsed[relative] = it }
+                    }.asIterable(),
+                )
+                bitmapFontSourcesUnchanged = MessageDigest.isEqual(preparedValidation, parsedValidation)
+            }
+        val renderPlanResult = buildWatchLayerRenderPlanResult(definition.layers)
+        val bitmapFonts = buildBitmapFontIndex(canonicalRoot, files, bitmapFontDefinitions)
+        val svgDocuments = HashMap<String, PreparedWatchSvgDocument<Path>>()
+        svgSourceDocuments.forEach { (relative, document) ->
+            val resolved = exact[relative] ?: return@forEach
+            prepareWatchSvgDocument(document) { pathData ->
+                runCatching { PathParser.createPathFromPathData(pathData) }.getOrNull()
+            }?.let { preparedDocument ->
+                svgDocuments[resolved.cacheRevision] = preparedDocument
+            }
+        }
         val galleryAssetPaths = exact.keys.asSequence()
             .filter { relative ->
                 val extension = relative.substringAfterLast('.', "").lowercase(Locale.ROOT)
@@ -5088,6 +5134,7 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
                     // 不需要跨线程往 Lua 状态机里推。
                     readExternalSlot = externalDataStore::slot,
                     externalDataVersion = externalDataStore::version,
+                    cachedInitialScriptChunk = prepared?.initialScriptChunk,
                 )
             }.getOrNull()
         } else {
@@ -5101,10 +5148,38 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
             .take(MAX_WATCH_LAYER_COUNT)
             .flatMapTo(LinkedHashSet()) { layer -> watchmakerLayerAttributeValues(layer) }
             .also { it += definition.rootAttributes.values }
+        val preparedExpressions = prepared?.expressionsFor(expressionScope)
+        val collectedExpressions = if (preparedCache != null && preparedExpressions == null) {
+            HashMap<String, WatchAttr>()
+        } else {
+            null
+        }
         val expressionCompileReport = WatchmakerExpressionEvaluator.precompile(
             sources = expressionSources,
             scope = expressionScope,
+            prepared = preparedExpressions?.let { cached -> { source: String -> cached[source] } },
+            collect = collectedExpressions,
         )
+        if (
+            preparedCache != null && bitmapFontSourcesUnchanged &&
+            (prepared == null || collectedExpressions != null)
+        ) {
+            val scopeDigest = watchPreparedScopeDigest(expressionScope)
+            val expressionsToStore: Map<String, WatchAttr> = collectedExpressions.orEmpty()
+            val scriptToCompile = initialScript
+            val cachedChunk = prepared?.initialScriptChunk
+            preparedCache.storeAsync(rootCacheKey, preparedManifest, preparedValidation) {
+                WatchPreparedStatic(
+                    definition = definition,
+                    svgDocuments = svgSourceDocuments,
+                    bitmapFonts = bitmapFontDefinitions,
+                    expressionScopeDigest = scopeDigest,
+                    compiledExpressions = expressionsToStore,
+                    initialScriptChunk = cachedChunk
+                        ?: WatchFaceLuaRuntime.compileInitialScriptForCache(scriptToCompile),
+                )
+            }
+        }
         val luaExpressionSources = expressionSources
             .filter(::watchFaceAttributeUsesLua)
             .mapTo(LinkedHashSet()) { it.trim() }
@@ -5149,9 +5224,50 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
         )
     }
 
+    /** R36：逐文件、实际字节有界读取字体源码；重遍历会重新读取，避免累计保留全文。 */
+    private fun readBitmapFontSources(root: File, files: List<File>): Iterable<Pair<String, String>> =
+        files.asSequence()
+            .filter { file ->
+                file.extension.equals("fnt", true) && file.length() in 1..MAX_BMFONT_DEFINITION_BYTES
+            }
+            .mapNotNull { file ->
+                val text = runCatching {
+                    file.inputStream().use { input ->
+                        input.readBytesBounded(MAX_BMFONT_DEFINITION_BYTES, "位图字体定义")
+                            .toString(Charsets.UTF_8)
+                    }
+                }.getOrNull() ?: return@mapNotNull null
+                file.relativeTo(root).invariantSeparatorsPath.lowercase(Locale.ROOT) to text
+            }
+            .asIterable()
+
+    private fun readWatchXmlBytes(watchXml: File): ByteArray {
+        val maximum = SecureWatchXmlParser.DEFAULT_MAX_BYTES
+        if (watchXml.length() <= maximum) {
+            val bytes = watchXml.inputStream().buffered().use { input ->
+                val output = java.io.ByteArrayOutputStream(watchXml.length().toInt().coerceAtLeast(32))
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0L
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > maximum) break
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray().takeIf { total <= maximum }
+            }
+            if (bytes != null) return bytes
+        }
+        // 与改动前同一个错误：交给安全解析器按原上限拒绝。
+        WatchmakerDefinitionParser().parse(watchXml)
+        error("watch.xml exceeds the $maximum-byte limit")
+    }
+
     private fun buildBitmapFontIndex(
         root: File,
         files: List<File>,
+        definitions: Map<String, WatchBitmapFont>,
     ): Map<String, PreparedBitmapFont?> {
         val index = HashMap<String, PreparedBitmapFont?>()
         val ambiguous = HashSet<String>()
@@ -5170,10 +5286,8 @@ class WatchmakerWatchFaceView @JvmOverloads constructor(
                 file.extension.equals("fnt", true) && file.length() in 1..MAX_BMFONT_DEFINITION_BYTES
             }
             .forEach { file ->
-                val definition = runCatching {
-                    parseWatchBitmapFont(file.readText(Charsets.UTF_8))
-                }.getOrNull() ?: return@forEach
                 val relative = file.relativeTo(root).invariantSeparatorsPath.lowercase(Locale.ROOT)
+                val definition = definitions[relative] ?: return@forEach
                 val relativeDirectory = relative.substringBeforeLast('/', "")
                 val prepared = PreparedBitmapFont(
                     file = file,
