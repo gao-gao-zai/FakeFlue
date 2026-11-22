@@ -25,6 +25,7 @@ import com.flue.launcher.surface.display.DisplayAdaptation
 import com.flue.launcher.surface.display.SafeAreaSpec
 import com.flue.launcher.surface.mode.SurfaceMode
 import com.flue.launcher.ui.common.FlueScreenShape
+import com.flue.launcher.ui.theme.UiStyle
 import com.flue.launcher.viewmodel.LauncherViewModel
 import com.flue.launcher.watchface.BUILT_IN_PHOTO_WATCHFACE_ID
 import com.flue.launcher.watchface.BUILT_IN_VIDEO_WATCHFACE_ID
@@ -47,6 +48,7 @@ class LegacySettingsJourneyTest {
     private val device = UiDevice.getInstance(instrumentation)
     private var originalScale: Int? = null
     private var originalShape: String? = null
+    private var originalUiStyle: String? = null
 
     @Before
     fun setUp() {
@@ -57,6 +59,7 @@ class LegacySettingsJourneyTest {
             val prefs = context.launcherSettings.data.first()
             originalScale = prefs[LauncherViewModel.KEY_GLOBAL_UI_SCALE_PERCENT]
             originalShape = prefs[LauncherViewModel.KEY_SCREEN_SHAPE_OVERRIDE]
+            originalUiStyle = prefs[LauncherViewModel.KEY_UI_STYLE]
             context.launcherSettings.edit {
                 it[LauncherViewModel.KEY_GLOBAL_UI_SCALE_PERCENT] = 100
                 it[LauncherViewModel.KEY_SCREEN_SHAPE_OVERRIDE] = FlueScreenShape.SQUARE.name
@@ -81,6 +84,8 @@ class LegacySettingsJourneyTest {
                     ?: prefs.remove(LauncherViewModel.KEY_GLOBAL_UI_SCALE_PERCENT)
                 originalShape?.let { prefs[LauncherViewModel.KEY_SCREEN_SHAPE_OVERRIDE] = it }
                     ?: prefs.remove(LauncherViewModel.KEY_SCREEN_SHAPE_OVERRIDE)
+                originalUiStyle?.let { prefs[LauncherViewModel.KEY_UI_STYLE] = it }
+                    ?: prefs.remove(LauncherViewModel.KEY_UI_STYLE)
             }
         }
         clearDisplayConfig()
@@ -137,6 +142,10 @@ class LegacySettingsJourneyTest {
     @Test
     fun aSliderConsumesHorizontalDragAndThePageStillScrollsVertically() {
         startSettings()
+        // Material 3 exposes a standard SeekBar node. The custom Apple slider has no such
+        // accessibility node, so use this style for a real pointer-input regression.
+        instrumentation.runOnMainSync { settingsViewModel().setUiStyle(UiStyle.MATERIAL_3) }
+        settle()
         clickText(string(R.string.settings_appearance))
         clickText(string(R.string.settings_display_fit))
         findText(string(R.string.settings_global_ui_size))
