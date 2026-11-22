@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -40,6 +41,14 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.flue.launcher.ui.common.isFlueScreenRound
@@ -139,6 +148,18 @@ internal fun AppleSwitch(
             // 自己的横向内边距里（方屏 16dp / 圆屏 24dp，都大于 8dp），不会被行卡的 clip 切到。
             // 预留余量的话开关会比同一列表里其他行的尾部控件内缩 8dp，反而看着没对齐。
             .defaultMinSize(minWidth = geometry.trackWidth, minHeight = style.switchTouchTarget)
+            .semantics {
+                role = Role.Switch
+                toggleableState = ToggleableState(checked)
+                if (!enabled) {
+                    disabled()
+                } else {
+                    onClick {
+                        checkedChange(!checkedState)
+                        true
+                    }
+                }
+            }
             // 手势块**不以 checked 为键**：拖动过程中值会变，重建 pointerInput 会把正在
             // 进行的手势连同「松手复位」一起取消，滑块就胖着不回来了。当前值改从
             // checkedState 读。
@@ -455,6 +476,27 @@ internal fun AppleSlider(
             .fillMaxWidth()
             .height(SLIDER_ROW_HEIGHT)
             .onSizeChanged { widthPx = it.width }
+            .progressSemantics(value, valueRange, steps)
+            .semantics {
+                if (!enabled) disabled()
+                setProgress { requested ->
+                    if (!enabled || !requested.isFinite()) {
+                        false
+                    } else {
+                        val fraction = ((requested.coerceIn(valueRange.start, valueRange.endInclusive) -
+                            valueRange.start) / span).coerceIn(0f, 1f)
+                        val snapped = FlueDampedDrag.quantize(fraction, steps)
+                        val resolved = valueRange.start + snapped * span
+                        if (resolved == value) {
+                            false
+                        } else {
+                            valueChange(resolved)
+                            valueChangeFinished?.invoke()
+                            true
+                        }
+                    }
+                }
+            }
             .pointerInput(enabled, steps, valueRange) {
                 if (!enabled) return@pointerInput
                 val thumbPx = SLIDER_THUMB_WIDTH.toPx()

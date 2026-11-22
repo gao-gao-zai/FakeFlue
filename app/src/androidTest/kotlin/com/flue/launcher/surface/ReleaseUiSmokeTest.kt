@@ -3,6 +3,8 @@ package com.flue.launcher.surface
 import android.content.Context
 import android.content.Intent
 import android.os.Process
+import android.os.Bundle
+import android.view.accessibility.AccessibilityNodeInfo
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -68,8 +70,8 @@ class ReleaseUiSmokeTest {
 
         openScreenFit()
         val originalDpi = openDpiPage()
-        clickText("+")
-        waitForText(string("app_dpi_value", originalDpi + 1))
+        // Exercise the installed Release control through Android's standard accessibility API.
+        setDpiProgress(if (originalDpi < 637) originalDpi + 3 else originalDpi - 3)
         clickText(string("display_cancel"))
         waitForText(string("screen_fit_subtitle"))
         assertEquals("Cancel must discard the draft DPI", originalDpi, openDpiPage())
@@ -160,6 +162,31 @@ class ReleaseUiSmokeTest {
         waitForText(string("app_dpi_hint"))
         val value = find(By.text(Pattern.compile("[0-9]+\\s+DPI")), "current DPI").text
         return value.substringBefore(' ').toInt()
+    }
+
+    private fun setDpiProgress(value: Int) {
+        find(By.clazz("android.widget.SeekBar"), "accessible DPI slider")
+        fun findSlider(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+            if (node.className?.toString() == "android.widget.SeekBar" &&
+                node.packageName == PACKAGE_NAME && node.isVisibleToUser) return node
+            for (index in 0 until node.childCount) {
+                val child = node.getChild(index) ?: continue
+                findSlider(child)?.let { return it }
+            }
+            return null
+        }
+        fun slider(): AccessibilityNodeInfo = requireNotNull(
+            instrumentation.uiAutomation.rootInActiveWindow?.let(::findSlider),
+        ) { "No standard DPI slider in the installed Release APK" }
+        val node = slider()
+        assertEquals(80f, node.rangeInfo.min)
+        assertEquals(640f, node.rangeInfo.max)
+        assertTrue(node.performAction(
+            AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id,
+            Bundle().apply { putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, value.toFloat()) },
+        ))
+        settle()
+        assertEquals("Release slider must reflect the accessible change", value.toFloat(), slider().rangeInfo.current)
     }
 
     private fun startLauncher() {
