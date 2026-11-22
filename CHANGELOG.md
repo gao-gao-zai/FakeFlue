@@ -1,5 +1,9 @@
 # Changelog
 
+本文件保留上游 Flue 的历史更新记录。下文的旧版本号、旧分支和旧 PR 属于当时记录；FFlue 当前功能、版本与验收状态见 [README](README.md)和[开发与验收状态](docs/PROJECT_STATUS.md)。
+
+## 上游历史：2026-04-27
+
 本文档记录当前 PR `#19: Splice old side screen into main` 相对 `main` 分支的主要更新内容。
 
 更新时间：2026-04-27

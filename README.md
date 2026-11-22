@@ -1,238 +1,85 @@
 # FFlue
 
-FFlue（FakeFlue）是基于 [Flue](https://github.com/xumidcm/Flue-next) 2.3.3 的 Android 手表桌面派生版本，
-在原版完整功能之上增加“伪装桌面”：普通手表外观、精简公开功能、隐藏的管理入口，并可在完整桌面、伪装桌面和外部桌面之间切换。
+FFlue（FakeFlue）是基于 [Flue](https://github.com/xumidcm/Flue-next) 2.3.3 的 Android 手表桌面派生版本。在原版完整桌面之上，增加伪装桌面、隐藏管理入口和独立配置，并支持退出到其他桌面。
 
-- 包名 `com.gaozai.surface`，可与原版 Flue（`com.flue.launcher`）同时安装
-- 以 [GPL-3.0](LICENSE) 发布；上游与第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
-- 仍在开发中，下文保留原版 Flue 的介绍，不代表 FFlue 新功能都已实现
+- 包名：`com.gaozai.surface`，可与原版 Flue（`com.flue.launcher`）同时安装。
+- 许可：[GPL-3.0](LICENSE)，上游与第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。感谢 Flue 原作者 xumidcm 及所有贡献者。
+- 当前测试交付版本：`2.3.3 / versionCode 28`。版本号仍待正式发布前确定。
 
-感谢 Flue 原作者 xumidcm 及所有贡献者。
+P0–P7 主体开发及签名、数据保护、显示适配和控件补漏已合并。自动验证已完成，设备专项与旧版兼容仍有待验收项，详见[开发与验收状态](docs/PROJECT_STATUS.md)。
 
----
+## 主要功能
 
-## 原版 Flue 介绍
+| 功能 | 当前实现 |
+| --- | --- |
+| 三种运行模式 | 完整桌面、伪装桌面、外部桌面；完整与伪装配置分开保存 |
+| 伪装公开界面 | 公开应用白名单、名称与图标覆盖、公开设置、通知和小组件访问限制 |
+| 隐藏管理 | 五区域密码、隐藏抽屉、管理菜单、密码重置与强制操作教程 |
+| 显示适配 | 安全区、独立应用 DPI、设置页右滑返回；Apple、Material 3、MIUIX 三种风格 |
+| 工具与通信 | 电池、闹钟、计时器、秒表、计算器，以及独立电话和短信实现 |
+| 桌面保护 | 桌面进入密码、磁贴／Intent／实体键快速进入、Root 导航守护与有界恢复 |
+| 表盘与数据 | 复用 Flue 表盘能力，增加启动分段计时、Watchmaker 持久准备缓存、备份校验和媒体替换保护 |
+| 控件无障碍 | 默认 Apple 滑条提供进度与调节动作，开关提供角色、状态及标准点击 |
 
-Flue 是一个面向 Android 手表的自定义桌面启动器，目标是提供更接近 watchOS 风格的主屏体验，同时保留 Android 生态下的应用启动、通知查看、表盘切换与快捷入口能力。
+电话短信需要设备支持相应硬件和默认应用角色；导航守护依赖可用的 Root 能力。相关手表 ROM、SIM 与实体键行为尚未完成实机验收。
 
-当前版本为 `beta1.3 (13)`，仍处于 beta 阶段，但主流程已经可用，分支内也在持续补齐交互细节、通知体验和表盘能力。
+## 开始使用
 
-## 项目定位
+1. 安装使用正式发布密钥签名的测试 APK。
+2. 首次启动按向导选择完整桌面，或完成伪装专属配置：安全区、DPI、功能授权、表盘、公开应用、隐藏密码和退出目标。
+3. 进入伪装前完成隐藏操作教程。后续通过应用内已配置的管理入口维护设置。
+4. 完整桌面使用完整配置；外部模式转交给选定的其他桌面。伪装中的临时管理访问保持原模式。
 
-Flue 不是传统意义上的“表盘应用”，而是一个会替代系统桌面的手表 Launcher。它负责：
+当前测试包与旧版应用的覆盖升级尚未验证。安装身份、版本号和签名说明见[发布与签名指南](docs/RELEASING.md)。
 
-- 作为 `HOME` 启动器承接表盘首页
-- 提供应用抽屉与应用启动动画
-- 提供副一屏快捷入口与通知预览
-- 提供独立通知中心与通知清除交互
-- 提供内置图片 / 视频表盘与外部表盘接入
-- 提供隐藏应用、图标包、性能与外观设置
+## 验证情况
 
-## 当前特性
+应用验收基线为 [`f20d343`](https://github.com/gao-gao-zai/FakeFlue/commit/f20d3430c1169644906cd8fcc2987b167026383b)：
 
-### 表盘首页
+- 单元测试总计 2229 项，0 失败，5 项因缺少本地表盘样本跳过。
+- Android 11（API 30）Debug 模拟器 18 项，0 失败、0 跳过。
+- R8 Release 模拟器首轮 3 项、强制停止后恢复 1 项，全部通过。
+- 本地正式签名 APK 已校验证书、包名、版本和 R8 映射，生产代码与该基线一致。
 
-- 支持内置表盘
-- 支持图片表盘与视频表盘
-- 支持已安装表盘扫描与切换
-- 支持数字、拟真时钟与 MD3E 时钟样式
-- 支持时钟位置、字号、粗细、秒显、字体、颜色与 MD3E 表盘形状配置
-- 支持从图片表盘和视频首帧自动取色，也支持 RGB 滑块手动配色
+[合并前模拟器与单元检查](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44995141399) · [合并后主分支检查](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44996335333)
 
-### 应用抽屉
+CI 模拟器使用临时测试签名，正式交付沿用已备份的本地发布密钥。当前仅在 Android 11 模拟器验证，实机、其他 Android 版本与性能结论见[待验证项](docs/PROJECT_STATUS.md)。
 
-- 支持蜂窝布局与列表布局
-- 支持最近打开动画与回桌面过渡
-- 支持图标包与图标质量切换
-- 支持鱼眼模式与快速流逝动画
-- 支持跟随表盘主色调的应用列表背景与应用项配色
+## 构建与测试
 
-### 副一屏 / Smart Stack
+构建环境为 JDK 21、Gradle 8.13、Android SDK 36 与 Build Tools 35.0.0，AGP 8.13.2、Kotlin 2.3.21。Java／Kotlin 字节码目标为 17。
 
-- 支持快捷应用槽位
-- 支持通知预览聚合
-- 支持从副一屏上滑进入通知中心
-- 支持底部电池与步数组合显示
+应用声明最低 Android 8.1（API 27），`targetSdk` 与 `compileSdk` 均为 36；最低版本声明不等于已完成各版本设备验收。
 
-### 通知中心
+配置好 JDK 和 Android SDK 后，在仓库根目录执行：
 
-- 支持通知监听服务
-- 支持按应用聚合
-- 支持展开 / 折叠通知组
-- 支持单条或整组滑动删除
-- 支持顶部橡皮筋与下拉返回手势
-
-### 设置页
-
-- 表盘管理
-- 外观与动画设置
-- 隐藏应用
-- 图标包切换
-- 性能选项
-- 工具与关于页
-
-### 其他
-
-- 崩溃保护页
-- 从最近任务中隐藏
-- GitHub Actions 云端构建 Release APK
-
-## 技术栈
-
-- Kotlin
-- Jetpack Compose
-- Android ViewModel
-- DataStore Preferences
-- Android Notification Listener
-- GitHub Actions
-
-## 运行要求
-
-- `minSdk = 27`
-- `targetSdk = 36`
-- `compileSdk = 36`
-- JDK 21
-- Android Gradle Plugin `8.13.2`
-- Kotlin `2.3.21`
-
-核心配置可参考：
-
-- [`app/build.gradle.kts`](app/build.gradle.kts)
-- [`gradle/libs.versions.toml`](gradle/libs.versions.toml)
-- [`app/src/main/AndroidManifest.xml`](app/src/main/AndroidManifest.xml)
-
-## 项目结构
-
-```text
-app/
-  src/main/kotlin/com/example/wlauncher/
-    LauncherActivity.kt                主桌面入口
-    SettingsActivity.kt                设置页
-    service/
-      WLauncherNotificationListener.kt 通知监听服务
-    viewmodel/
-      LauncherViewModel.kt             桌面状态与配置中心
-    ui/
-      drawer/                          应用抽屉
-      home/                            表盘首页
-      smartstack/                      副一屏
-      notification/                    通知中心
-      settings/                        设置项 UI
-      common/                          通用交互与组件
-    watchface/                         内置表盘配置与存储
-  src/main/java/com/flue/launcher/watchface/
-    standard/                          标准 .watch 表盘解析、运行与存储
-    jbwatch/                           JB 兼容表盘运行与存储
-.github/workflows/build.yml            CI 构建流程
+```bash
+bash gradlew --no-daemon --max-workers=2 testDebugUnitTest :app:assembleDebug
 ```
 
-## 核心页面
+Windows 使用 `gradlew.bat`。输出位置：
 
-- 首页入口：[`LauncherActivity.kt`](app/src/main/kotlin/com/example/wlauncher/LauncherActivity.kt)
-- 设置页：[`SettingsActivity.kt`](app/src/main/kotlin/com/example/wlauncher/SettingsActivity.kt)
-- 副一屏：[`SmartStackLayer.kt`](app/src/main/kotlin/com/example/wlauncher/ui/smartstack/SmartStackLayer.kt)
-- 通知中心：[`NotificationLayer.kt`](app/src/main/kotlin/com/example/wlauncher/ui/notification/NotificationLayer.kt)
-- 状态管理：[`LauncherViewModel.kt`](app/src/main/kotlin/com/example/wlauncher/viewmodel/LauncherViewModel.kt)
+- Debug APK：`app/build/outputs/apk/debug/`。
+- 单元测试报告：`app/build/reports/tests/testDebugUnitTest/index.html`。
 
-## 构建方式
+正式签名构建的配置、验证命令和产物归档见[发布与签名指南](docs/RELEASING.md)。
 
-### 方式一：Android Studio 本地调试
+## GitHub Actions
 
-1. 用 Android Studio 打开仓库根目录
-2. 使用 JDK 21
-3. 等待 Gradle Sync 完成
-4. 选择设备后运行 `app`
+工作流为 [android-ci.yml](.github/workflows/android-ci.yml)。
 
-命令行调试可使用：
+- `main`、`yzp/**` 的 push，以及 Pull Request：单元测试、Debug APK 与独立 Release 验收 APK 构建。
+- Pull Request 和手动运行：额外执行 API 30 Debug 仪器测试与 R8 Release 模拟器验收。
+- 手动勾选 `build_release` 或推送 `v*` 标签：额外执行正式签名 Release 构建，需要事先配置签名 Secrets。
 
-```powershell
-$env:JAVA_HOME="D:\Java"
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-.\gradlew.bat installDebug
-```
+当前交付选择本地正式签名；云端正式签名任务已实现，尚未配置并完成远端端到端验收。临时测试签名不能替代发布身份。
 
-如需签名 Release，可在根目录提供 `keystore.properties`，或通过环境变量 / Gradle 属性传入：
+## 文档与源码入口
 
-- `FLUE_SIGNING_STORE_FILE`
-- `FLUE_SIGNING_STORE_PASSWORD`
-- `FLUE_SIGNING_KEY_ALIAS`
-- `FLUE_SIGNING_KEY_PASSWORD`
+- [开发与验收状态](docs/PROJECT_STATUS.md)：阶段、证据与未闭环项。
+- [发布与签名指南](docs/RELEASING.md)：当前 APK 校验信息、签名与正式发布检查。
+- [开发交接](HANDOFF.md)与 [Git 工作流](docs/GIT_WORKFLOW.md)。
+- [旧设置页适配验收](docs/validation/2026-11-22-legacy-settings.md)、[默认控件验收](docs/validation/2026-11-22-apple-controls.md)、[启动计时记录表](docs/validation/2026-11-21-startup-timing.md)。
+- [CHANGELOG.md](CHANGELOG.md)保留上游历史记录，其中旧版本号和旧 PR 不代表本项目当前版本。
 
-### 方式二：GitHub Actions 云端构建
-
-工作流配置见 [android-ci.yml](.github/workflows/android-ci.yml)。
-
-- 推送到 `main`、`yzp/**` 或提交 Pull Request 时执行单元测试和 Debug 构建。
-- Pull Request 和手动触发时执行 API 30 模拟器测试，分别验证 Debug 完整仪器套件与 R8 Release 正常界面流程。Release 验收包含首次引导、设置与备份页面、DPI 取消和保存，以及强制停止后的冷启动持久化。
-- 手动触发时勾选 `build_release`，或推送 `v*` 标签，执行签名 Release 构建。Release 任务先等待单元测试和 Debug 构建通过。
-
-模拟器中的 R8 Release 使用本次 CI 临时生成的测试签名，真实发布签名通过下列仓库 Actions Secrets 配置。本地签名构建仍可使用已有环境变量入口。
-
-- `FLUE_RELEASE_KEYSTORE_B64` 保存密钥库文件的 Base64 编码。
-- `FLUE_SIGNING_STORE_PASSWORD` 保存密钥库口令。
-- `FLUE_SIGNING_KEY_ALIAS` 保存签名条目别名。
-- `FLUE_SIGNING_KEY_PASSWORD` 保存签名条目口令。
-
-PowerShell 可生成密钥库的 Base64 编码，结果用于填写对应 Secret。
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("fflue-release.p12"))
-```
-
-任务会校验 APK 签名并清理临时密钥库，成功后上传 `Flue-release` artifact，其中包含 APK 和 R8 的 `mapping.txt`。Debug 构建上传 `debug-apk` artifact。
-
-本地生成 Release APK：
-
-```powershell
-$env:JAVA_HOME="D:\Java"
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-.\gradlew.bat assembleRelease --no-daemon --console=plain
-```
-
-配置签名后的 APK 输出路径
-
-- [`app/build/outputs/apk/release/app-release.apk`](app/build/outputs/apk/release/app-release.apk)
-
-## 配置项概览
-
-根据当前设置页，Flue 已支持以下主要配置：
-
-- 表盘切换与刷新
-- 图片 / 视频表盘资源管理
-- 表盘文字位置、大小、粗细、字体、秒显与颜色
-- MD3E 表盘形状与多部件颜色配置
-- 首页布局模式切换
-- 副一屏开关
-- 模糊、边缘模糊、低清图标、鱼眼与动画覆盖
-- 蜂窝布局列数、顶部 / 底部模糊与渐隐
-- 快速流逝动画
-- 副一屏步数显示
-- 隐藏应用
-- ADW 图标包扫描与切换
-- 通知显示开关
-- 从最近任务中隐藏
-
-## 当前状态
-
-项目正处于快速迭代阶段，最近的改动重点集中在：
-
-- 表盘颜色系统、MD3E 时钟与应用列表主色调联动
-- 蜂窝 / 列表应用抽屉的鱼眼与快速流逝动画
-- 副一屏电池与步数组合显示
-- 应用栏内置设置入口与自启动隔离
-- Kotlin warning / deprecation 清理
-- 通知、下拉、回弹与返回等细节手势持续修正
-
-详细更新见：
-
-- [`CHANGELOG.md`](CHANGELOG.md)
-
-## 已知说明
-
-- 当前仓库仍保留了一些实验性质较强的实现，命名与结构还会继续收敛
-- 一些视觉与交互细节仍在持续打磨中
-- 由于设备差异较大，通知、表盘和动画体验可能需要在真机上进一步校正
-
-## 致谢
-
-这个项目吸收了手表桌面、表盘宿主、通知中心和快捷面板等多个方向的实验成果，也保留了较多迭代痕迹。欢迎继续基于当前分支完善交互、性能与视觉一致性。
+新增功能集中在 `app/src/main/kotlin/com/flue/launcher/surface/`，模式与配置从 [SurfaceRuntime.kt](app/src/main/kotlin/com/flue/launcher/surface/SurfaceRuntime.kt) 接入。复用的桌面与设置入口仍保留在 [LauncherActivity.kt](app/src/main/kotlin/com/example/wlauncher/LauncherActivity.kt) 和 [SettingsActivity.kt](app/src/main/kotlin/com/example/wlauncher/SettingsActivity.kt)。

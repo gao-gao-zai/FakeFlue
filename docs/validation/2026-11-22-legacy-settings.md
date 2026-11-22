@@ -25,7 +25,7 @@
 
 本地全量单元测试已完成：2229 项、0 失败、0 错误，5 项因缺少本地样本跳过。Debug APK、仪器测试 APK 和独立 Release 验收 APK 均构建通过。
 
-模拟器执行结果以本分支对应的 [Actions 记录](https://github.com/gao-gao-zai/FakeFlue/actions/workflows/android-ci.yml?query=branch%3Ayzp%2Fsettings-adaptation) 和 PR 验证说明为准。Debug 套件预计执行 13 项，R8 Release 首轮 3 项、强制停止后恢复 1 项。
+[PR #17](https://github.com/gao-gao-zai/FakeFlue/pull/17) 已合并为 `b4049aa`。该阶段的 [CI](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44988253695) 执行 Debug 13 项、R8 Release 首轮 3 项与恢复 1 项，均通过；当时滑条回归使用 Material 3。随后 [PR #18](https://github.com/gao-gao-zai/FakeFlue/pull/18) 补齐默认控件语义并恢复默认 Apple 风格测试，最终组合的 [CI](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44995141399) 执行 Debug 18 项、0 失败、0 跳过，包含上述 5 项；R8 Release 3＋1 项也通过。[main 合并后检查](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44996335333) 已通过，应用基线为 `f20d343`。
 
 ## 验证边界
 

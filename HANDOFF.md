@@ -1,66 +1,41 @@
 # FFlue 开发交接文档
 
-日期：2026-11-22。原作者：上一位开发 agent（Claude）。P7 合并状态与 Release 后续任务已由 Codex 更新。
+更新日期：2026-11-22。请和用户说中文。
 
-本文件已随 `p7-cache`（PR #14）合并进入 main。请和用户说中文。
+应用验收基线为 `f20d3430c1169644906cd8fcc2987b167026383b`。P0–P7 以及 #15–#18 的后续补漏均已合并。完整状态见[开发与验收状态](docs/PROJECT_STATUS.md)，交付身份与发布步骤见[发布与签名指南](docs/RELEASING.md)。
 
 ## 1. 项目与资料
 
-- **项目：** FFlue（公开仓库名 FakeFlue），是 Flue 安卓手表桌面的衍生版本，增加了“伪装桌面”模式。
-- **需求文档：** `/srv/projects/fflue/docs/FFlue_重开发需求文档.md`，含 R01–R37、验收 A01–A15、§12 工程边界。
-- **分阶段计划：** `/srv/projects/fflue/docs/FFlue_分阶段实施计划.md`，分 P0–P7。
-- **原版改动总结：** `/srv/projects/fflue/docs/FFlue_原版改动总结.md`
-- **P0 真机检查清单：** `/srv/projects/fflue/docs/FFlue_P0_真机检查清单.md`
-- **代码：** 当前云环境为 `/workspace/FakeFlue`。上述需求资料与 `/srv/projects/fflue/src` 路径来自旧开发环境。
-- **公开开发仓库：** `gao-gao-zai/FakeFlue`，这是 origin。
-- **私有仓库：** `gao-gao-zai/fflue` 只作存档。不要往公开仓库推它的历史，也不要推任何 `archive/*` 分支。
+- FFlue（公开仓库名 FakeFlue）是 Flue 2.3.3 的 Android 手表桌面派生版，增加伪装桌面，以 GPL-3.0 发布。
+- 当前代码目录为 `/workspace/FakeFlue`，公开 origin 为 `gao-gao-zai/FakeFlue`。
+- 私有仓库 `gao-gao-zai/fflue` 仅作存档，不把其历史或 `archive/*` 分支推往公开仓库。
+- 原 R01–R37 需求、P0–P7 计划、原版改动总结与 P0 真机清单位于旧环境 `/srv/projects/fflue/docs/FFlue_*.md`。这些路径不是当前工作区文件；旧归档“表面”需求不能替代现行 FFlue 需求。当前状态表按已合并实现与实际验证证据整理。
 
-## 2. 进度
+## 2. 已完成与验证证据
 
-| 阶段 | 状态 |
+| 内容 | 已合并记录 |
 | --- | --- |
-| P0–P6 | 已合并进 main，P6 是 #8–#11 |
-| P7 | #12、#13、#14 已按顺序 squash 合并，合并完成时 main 为 `6635c421f6136bd59c4a8726b50b4653caaf5a82` |
+| P0–P6：身份、模式、显示、公开界面、隐藏管理、教程、系统能力、工具与通信 | 首次公开基线及 #1–#11 |
+| P7：R35 启动、R37 备份与可靠性、R36 准备缓存 | [#12](https://github.com/gao-gao-zai/FakeFlue/pull/12)、[#13](https://github.com/gao-gao-zai/FakeFlue/pull/13)、[#14](https://github.com/gao-gao-zai/FakeFlue/pull/14) |
+| 本地正式签名与工作流 | [#15](https://github.com/gao-gao-zai/FakeFlue/pull/15)，合并提交 `cb5e926` |
+| 媒体替换保护、模式坏值恢复与 R8 模拟器验收 | [#16](https://github.com/gao-gao-zai/FakeFlue/pull/16)，合并提交 `7ffb91e` |
+| 旧设置页安全区与右滑返回 | [#17](https://github.com/gao-gao-zai/FakeFlue/pull/17)，合并提交 `b4049aa` |
+| 默认 Apple 滑条与开关的读屏状态和标准操作 | [#18](https://github.com/gao-gao-zai/FakeFlue/pull/18)，合并提交 `f20d343` |
 
-P7 的三个叠加 PR 已完成合并，下面保留原分工供追溯。
+- 最新单元测试总计 2229 项，0 失败，5 项因缺少本地表盘样本跳过。P7 初次交付的 2215 项是历史统计。
+- [最终合并前 CI](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44995141399)：Android 11 Debug 18 项，0 失败、0 跳过；R8 Release 首轮 3 项、外部强制停止后恢复 1 项，全部通过。
+- [合并后 main CI](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44996335333) 已通过，完整文件树与验收提交一致。main push 按条件不重复执行模拟器。
+- 本地正式签名包的生产代码已核对与应用基线一致，证书与用户已备份密钥一致；包名 `com.gaozai.surface`，版本 `2.3.3 / 28`，R8 映射非空。正式 Release 不包含 Debug 测试 Activity。
+- 正式签名保留本地。CI 模拟器使用临时测试签名；云端正式签名任务已实现，Secrets 管理接口此前返回 403，用户已决定暂不配置，不要反复要求配置。
+- 普通媒体替换按“写新文件 → 提交设置 → 清理旧引用”执行，与备份媒体共用互斥。桌面模式损坏或无法读取时回到完整模式，这是用户确认的策略。
+- 旧设置页与独立图片／视频设置页已采用已保存安全区和共用右滑；保留滚动、搜索、圆屏缩放和旋钮接入。默认 Apple 控件及三种风格 DPI 操作有实际 UI 回归。
 
-| PR | 分支 | 内容 | 原基准 | 状态 |
-| --- | --- | --- | --- | --- |
-| [#12](https://github.com/gao-gao-zai/FakeFlue/pull/12) | `p7-startup` | R35 启动：当前表盘不等全量扫描就显示，启动分段计时 | main | 已合并 |
-| [#13](https://github.com/gao-gao-zai/FakeFlue/pull/13) | `p7-data` | R37 备份导入与数据可靠性修复 | p7-startup | 已合并 |
-| [#14](https://github.com/gao-gao-zai/FakeFlue/pull/14) | `p7-cache` | R36 Watchmaker 表盘持久缓存，以及本交接文档 | p7-data | 已合并 |
+## 3. 保留的待验与外部输入
 
-- P7 全量测试报告共 2215 项，0 失败，5 项因缺少本地样本跳过，包含本轮新增的 19 项回归测试。
-- 三个 PR 合并前的 unit 和 API 30 模拟器 CI 均通过。
-- main 合并后的 unit CI 通过。main 的 push 事件按工作流条件跳过模拟器任务。
-- 签名 Release 工作流已实现；基于合并后应用代码的 R8 构建与新密钥签名校验已通过，验证范围见 §3 第 1 项。
-
-## 3. 下一步要做的事
-
-1. **签名 Release 流程已实现，用户本轮选择保留本地签名构建。**
-   - 用户已选择新建发布密钥，并要求保存加密密钥库与签名 APK。新签名与旧版签名的覆盖升级兼容性需分别处理。
-   - `.github/workflows/android-ci.yml` 已增加 Release 任务。手动触发时勾选 `build_release`，或推送 `v*` 标签，先等待 unit 通过。手动选项默认关闭，保留原有手动测试入口。
-   - 从 Secrets 解码密钥库到 `$RUNNER_TEMP`，执行 `assembleRelease` 并保留 R8 混淆，再用 `apksigner verify --print-certs` 校验。
-   - 缺少签名配置时失败。结束时清理临时密钥文件，产物包含签名 APK 与 `mapping.txt`。
-   - GitHub 配置名为 `FLUE_RELEASE_KEYSTORE_B64`、`FLUE_SIGNING_STORE_PASSWORD`、`FLUE_SIGNING_KEY_ALIAS`、`FLUE_SIGNING_KEY_PASSWORD`。
-   - `app/build.gradle.kts` 已支持 `FLUE_SIGNING_STORE_FILE` 等环境变量。密钥与口令通过用户授权的安全方式配置或交付。
-   - **本地验证通过。** `assembleRelease` 已完成 R8 混淆。随后执行工作流中的实际签名步骤，APK 的包名为 `com.gaozai.surface`、版本为 `2.3.3 / 28`；`apksigner` 校验通过，证书 SHA-256 与新密钥库导出的证书一致，`mapping.txt` 非空，临时密钥库已删除。Actionlint 与 9 项脚本失败处理、清理检查均通过。GitHub Secrets 列表和公钥接口返回 403，用户已选择暂时保留本地签名，远端 Secrets 配置与正式签名任务端到端运行留待后续启用。PR #15 的单元与 API 30 模拟器检查已通过，并已 squash 合并为 `cb5e9265edc1fadbd272395c6fc447123875bb9c`。
-2. **普通媒体保护与 Release 模拟器验收已实现。** 图片、视频、字体和背景采用新文件写入、真实设置提交、旧引用清理的顺序，普通替换与备份媒体阶段共用互斥；背景按字段和模式防抖，保留最新路径。新增 API 30 R8 Release UI 验收使用临时测试签名，实际发布身份保持本地密钥。独立 `release-smoke` 模块打包测试框架和 Kotlin 运行库，并共享两份不引用应用实现的冒烟测试源码，避免 Debug 测试包省略共享依赖后无法运行于 R8 应用。本地全量单元测试已完成，共 2229 项，0 失败，5 项因缺少本地样本跳过；Debug APK 与仪器测试 APK 均构建通过。Actions 的 Debug 与 R8 Release 模拟器结果以 [PR #16 的检查记录](https://github.com/gao-gao-zai/FakeFlue/pull/16/checks) 为准。Release 首轮验收 3 项，外部 force-stop 后冷启动恢复验收 1 项；调试套件继续独立执行。
-3. **真机验收（用户说过“不要实际测”，只能整理出来交给用户）：**
-   - 启动计时：按 `docs/validation/2026-11-21-startup-timing.md` 填表，需要和原版 Flue 在同一台手表上实测。
-   - P5：Root 导航守护。
-   - P6：来电全屏、短信收发（A12，需要 SIM 卡）、闹钟锁屏全屏、实体键快速进入。
-   - R36：缓存实际提速多少。
-   - R37：Android 9–11 上的表现。
-4. **一直缺的输入：**
-   - 用户确认暂无旧版备份或 APK 样本。R37 旧数据迁移和 R30 旧手势恢复的历史格式兼容验证等待样本。
-   - 旧版 versionCode 仍待确认，当前保持占位值 28；用户已选择新的发布签名身份。
-5. **模式恢复策略已由用户确认。** 无法读取桌面模式时回到完整模式。本轮已修复错类型模式值的恢复，并通过 5 项真实 SharedPreferences 回归。
-6. **旧环境工作树已核实。** 旧交接中的两个 `.claude/worktrees/agent-*` 路径在当前云环境均不存在，也无对应 Git worktree 注册。当前保留主工作树与用户创建的三个 P7 工作树。
-
-7. **旧设置页统一适配（R23、R25）。** 公共旧设置列表和图片、视频表盘的独立设置页已接入 `SettingsPageFrame`，采用已保存的安全区视口与共用右滑返回。保留旧列表的圆屏缩放、搜索定位、滚动记忆和旋钮处理；编辑页退出沿用原提交回调。新增 5 项 Debug 实际界面检查，R8 备份流程也改为真实右滑。范围、测试场景与结果入口见 [本轮验收记录](docs/validation/2026-11-22-legacy-settings.md)。
-
-8. **默认 Apple 控件读屏状态与标准操作。** 为交互式滑条和开关补充标准语义，滑条复用原拖动刻度规则并处理禁用、重复与无效请求，开关提供角色、状态与启用时的点击。旧设置页的滑条测试恢复默认风格；新增真实控件语义与指针测试，以及三种风格的 DPI 实际旅程；R8 验收也覆盖标准调节动作。测试与边界见 [本轮记录](docs/validation/2026-11-22-apple-controls.md)。本轮叠在 PR #17 上，未改变既有合并规则。
+1. 用户明确不做实机测试。Root 导航、真实电话短信、锁屏闹钟、实体键、读屏语音、真实圆屏与 ROM 边距均未完成设备验收；启动和缓存提速没有同机对比结论。[启动计时表](docs/validation/2026-11-21-startup-timing.md)保留待填。
+2. 用户确认暂无旧版备份或 APK 样本。R37 历史迁移、R30 旧手势恢复和覆盖升级继续待验；5 项缺少表盘样本的测试也不能标成通过。
+3. 正式版本号未确定，旧版最大 versionCode 未知。当前保持 `2.3.3 / 28`，不要将测试交付标为已完成正式发布；新签名与旧安装的覆盖兼容需要单独核对。
+4. 当前保留主工作树和用户创建的三个 P7 工作树。旧交接中的 `.claude/worktrees/agent-*` 不存在，勿重建或把它们当作待处理改动。清理现有分支／工作树须另按用户授权处理。
 
 ## 4. 构建与测试
 
@@ -121,8 +96,8 @@ def edit(p, pairs):
 - 代理只按单条命令设置，不改全局的 git、npm 或系统代理配置。
 - 不要杀其他用户（ctyun）的进程。
 - 不做真机测试。CI 模拟器只有 Android 11。
-- 签名身份确认后再落实 Release 签名配置，versionCode 仍为占位值 28。
-- 用户本轮明确要求完成 Actions 模拟器验收，可跟踪本轮验证至结束；持续后台定时监控另行约定。
+- 签名身份已确定并完成本地 Release 签名校验，沿用已备份密钥；正式版本号仍待确定，versionCode 保持 28。
+- 用户允许使用 GitHub Actions 模拟器。需要验证时跟踪当前运行至结束，长期后台定时监控另行约定；纯文档改动运行匹配的文档检查即可。
 
 ## 7. P7 各块的要点（细节见各 PR 描述）
 
