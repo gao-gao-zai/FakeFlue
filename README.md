@@ -160,17 +160,26 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 
 ### 方式二：GitHub Actions 云端构建
 
-Workflow file: [`.github/workflows/build.yml`](.github/workflows/build.yml)
+工作流配置见 [android-ci.yml](.github/workflows/android-ci.yml)。
 
-触发方式：
+- 推送到 `main`、`yzp/**` 或提交 Pull Request 时执行单元测试和 Debug 构建。
+- Pull Request 和手动触发时执行 API 30 模拟器测试。
+- 手动触发时勾选 `build_release`，或推送 `v*` 标签，执行签名 Release 构建。Release 任务先等待单元测试和 Debug 构建通过。
 
-- push 任意分支
-- 提交 Pull Request
-- 手动触发 `workflow_dispatch`
+签名 Release 使用仓库 Actions Secrets。
 
-产物：
+- `FLUE_RELEASE_KEYSTORE_B64` 保存密钥库文件的 Base64 编码。
+- `FLUE_SIGNING_STORE_PASSWORD` 保存密钥库口令。
+- `FLUE_SIGNING_KEY_ALIAS` 保存签名条目别名。
+- `FLUE_SIGNING_KEY_PASSWORD` 保存签名条目口令。
 
-- `Flue-release` APK artifact
+PowerShell 可生成密钥库的 Base64 编码，结果用于填写对应 Secret。
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("fflue-release.p12"))
+```
+
+任务会校验 APK 签名并清理临时密钥库，成功后上传 `Flue-release` artifact，其中包含 APK 和 R8 的 `mapping.txt`。Debug 构建上传 `debug-apk` artifact。
 
 本地生成 Release APK：
 
@@ -180,7 +189,7 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\gradlew.bat assembleRelease --no-daemon --console=plain
 ```
 
-默认输出路径：
+配置签名后的 APK 输出路径
 
 - [`app/build/outputs/apk/release/app-release.apk`](app/build/outputs/apk/release/app-release.apk)
 
