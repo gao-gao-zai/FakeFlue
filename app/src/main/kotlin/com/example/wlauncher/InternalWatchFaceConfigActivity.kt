@@ -84,6 +84,7 @@ import com.flue.launcher.viewmodel.LauncherViewModel
 import com.flue.launcher.watchface.BUILT_IN_PHOTO_WATCHFACE_ID
 import com.flue.launcher.watchface.BuiltInWatchFaceOptions
 import com.flue.launcher.surface.SurfaceRuntime
+import com.flue.launcher.surface.ui.SettingsPageFrame
 import com.flue.launcher.surface.config.ConfigScopePin
 import com.flue.launcher.watchface.WatchClockColorMode
 import com.flue.launcher.watchface.WatchClockPosition
@@ -318,10 +319,11 @@ private fun InternalWatchFaceConfigScreen(
         }
     }
 
-    BackHandler {
+    val finishEditing: () -> Unit = {
         persistPendingChanges()
         onBack()
     }
+    BackHandler(onBack = finishEditing)
 
     val scrollState = rememberScrollState()
     val focusRequester = remember { FocusRequester() }
@@ -330,10 +332,11 @@ private fun InternalWatchFaceConfigScreen(
         focusRequester.requestFocusAfterFirstFrame()
     }
 
+    SettingsPageFrame(onBack = finishEditing) { systemInsets ->
     Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(launcherStyle.screenBackground)
+                .padding(systemInsets)
                 .flueRotaryScrollable(focusRequester, ROTARY_SCROLL_MULTIPLIER) { rotaryDelta ->
                     scope.launch { scrollState.scrollBy(-rotaryDelta) }
                 }
@@ -729,10 +732,8 @@ private fun InternalWatchFaceConfigScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        ActionButton(text = stringResource(R.string.common_back)) {
-            persistPendingChanges()
-            onBack()
-        }
+        ActionButton(text = stringResource(R.string.common_back), onClick = finishEditing)
+    }
     }
 }
 @Composable

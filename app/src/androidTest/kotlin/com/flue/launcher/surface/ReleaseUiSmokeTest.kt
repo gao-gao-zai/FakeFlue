@@ -134,11 +134,20 @@ class ReleaseUiSmokeTest {
         clickText(string("settings_backup_menu"))
         clickText(string("settings_backup_import_page"))
         findText(string("settings_backup_import_pick"))
-        device.pressBack()
-        settle()
+        swipeBack()
         clickText(string("settings_backup_export_page"))
         findText(string("backup_item_settings"))
         findText(string("settings_backup_export_start"))
+        swipeBack()
+        findText(string("settings_backup_import_page"))
+        swipeBack()
+        assertTrue("Back must preserve the parent scroll position", device.hasObject(By.text(string("settings_backup_menu"))))
+    }
+
+    private fun swipeBack() {
+        val y = device.displayHeight / 5
+        device.swipe(device.displayWidth / 4, y, device.displayWidth * 19 / 20, y, 25)
+        settle()
     }
 
     private fun openScreenFit() {
