@@ -45,7 +45,7 @@ P7 的三个叠加 PR 已完成合并，下面保留原分工供追溯。
    - GitHub 配置名为 `FLUE_RELEASE_KEYSTORE_B64`、`FLUE_SIGNING_STORE_PASSWORD`、`FLUE_SIGNING_KEY_ALIAS`、`FLUE_SIGNING_KEY_PASSWORD`。
    - `app/build.gradle.kts` 已支持 `FLUE_SIGNING_STORE_FILE` 等环境变量。密钥与口令通过用户授权的安全方式配置或交付。
    - **本地验证通过。** `assembleRelease` 已完成 R8 混淆。随后执行工作流中的实际签名步骤，APK 的包名为 `com.gaozai.surface`、版本为 `2.3.3 / 28`；`apksigner` 校验通过，证书 SHA-256 与新密钥库导出的证书一致，`mapping.txt` 非空，临时密钥库已删除。Actionlint 与 9 项脚本失败处理、清理检查均通过。GitHub Secrets 列表和公钥接口返回 403，用户已选择暂时保留本地签名，远端 Secrets 配置与正式签名任务端到端运行留待后续启用。PR #15 的单元与 API 30 模拟器检查已通过，并已 squash 合并为 `cb5e9265edc1fadbd272395c6fc447123875bb9c`。
-2. **普通媒体保护与 Release 模拟器验收已实现。** 图片、视频、字体和背景采用新文件写入、真实设置提交、旧引用清理的顺序，普通替换与备份媒体阶段共用互斥；背景按字段和模式防抖，保留最新路径。新增 API 30 R8 Release UI 验收使用临时测试签名，实际发布身份保持本地密钥。本地全量单元测试已完成，共 2229 项，0 失败，5 项因缺少本地样本跳过；Debug APK 与仪器测试 APK 均构建通过。Actions 的 Debug 与 R8 Release 模拟器结果以 [PR #16 的检查记录](https://github.com/gao-gao-zai/FakeFlue/pull/16/checks) 为准。Release 首轮验收 3 项，外部 force-stop 后冷启动恢复验收 1 项；调试套件继续独立执行。
+2. **普通媒体保护与 Release 模拟器验收已实现。** 图片、视频、字体和背景采用新文件写入、真实设置提交、旧引用清理的顺序，普通替换与备份媒体阶段共用互斥；背景按字段和模式防抖，保留最新路径。新增 API 30 R8 Release UI 验收使用临时测试签名，实际发布身份保持本地密钥。独立 `release-smoke` 模块打包测试框架和 Kotlin 运行库，并共享两份不引用应用实现的冒烟测试源码，避免 Debug 测试包省略共享依赖后无法运行于 R8 应用。本地全量单元测试已完成，共 2229 项，0 失败，5 项因缺少本地样本跳过；Debug APK 与仪器测试 APK 均构建通过。Actions 的 Debug 与 R8 Release 模拟器结果以 [PR #16 的检查记录](https://github.com/gao-gao-zai/FakeFlue/pull/16/checks) 为准。Release 首轮验收 3 项，外部 force-stop 后冷启动恢复验收 1 项；调试套件继续独立执行。
 3. **真机验收（用户说过“不要实际测”，只能整理出来交给用户）：**
    - 启动计时：按 `docs/validation/2026-11-21-startup-timing.md` 填表，需要和原版 Flue 在同一台手表上实测。
    - P5：Root 导航守护。

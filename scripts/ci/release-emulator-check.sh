@@ -27,7 +27,7 @@ build_packages() {
     bash gradlew --no-daemon --max-workers=2 \
         -Pkotlin.compiler.execution.strategy=in-process \
         -Pflue.extraAbi=x86_64 -Pflue.disableReleaseMinify=false \
-        assembleRelease --console=plain
+        :app:assembleRelease --console=plain
 
     local build_tools="${ANDROID_HOME:?ANDROID_HOME is required}/build-tools/35.0.0"
     cp app/build/outputs/apk/release/app-release.apk "$report_dir/app-release-under-test.apk"
@@ -47,7 +47,9 @@ build_packages() {
 from pathlib import Path
 import json
 import re
+import struct
 import sys
+import zipfile
 
 root = Path(sys.argv[1])
 def fingerprints(path):
@@ -59,11 +61,41 @@ assert len(app) == 1 and app == tests, "App and instrumentation signatures diffe
 manifest = (root / "app-manifest.txt").read_text()
 assert "package: name='com.gaozai.surface'" in manifest, "Unexpected application ID"
 assert "application-debuggable" not in manifest, "Release app must have debuggable disabled"
+
+# Check class definitions, not references: a Debug androidTest APK can refer to
+# runtime classes that it omits because its original target supplied them.
+defined_classes = set()
+with zipfile.ZipFile(root / "app-release-ui-test.apk") as apk:
+    for name in apk.namelist():
+        if not re.fullmatch(r"classes\d*\.dex", name):
+            continue
+        dex = apk.read(name)
+        strings_offset = struct.unpack_from("<I", dex, 60)[0]
+        types_offset = struct.unpack_from("<I", dex, 68)[0]
+        class_count, classes_offset = struct.unpack_from("<II", dex, 96)
+        for index in range(class_count):
+            class_index = struct.unpack_from("<I", dex, classes_offset + index * 32)[0]
+            string_index = struct.unpack_from("<I", dex, types_offset + class_index * 4)[0]
+            offset = struct.unpack_from("<I", dex, strings_offset + string_index * 4)[0]
+            while dex[offset] & 0x80:
+                offset += 1
+            offset += 1
+            defined_classes.add(dex[offset:dex.index(b"\0", offset)].decode("utf-8"))
+required = {
+    "Lkotlin/jvm/internal/Intrinsics;",
+    "Landroidx/tracing/Trace;",
+    "Landroidx/test/runner/AndroidJUnitRunner;",
+    "Lcom/flue/launcher/surface/LauncherSmokeTest;",
+    "Lcom/flue/launcher/surface/ReleaseUiSmokeTest;",
+}
+assert required <= defined_classes, f"Standalone test runtime is incomplete: {required - defined_classes}"
+assert "Lcom/flue/launcher/LauncherActivity;" not in defined_classes, "Test APK must not bundle app implementation"
 (root / "build-summary.json").write_text(json.dumps({
     "application_id": "com.gaozai.surface",
     "certificate_sha256": app[0],
     "r8_mapping_bytes": Path("app/build/outputs/mapping/release/mapping.txt").stat().st_size,
     "signing_purpose": "temporary emulator test key",
+    "standalone_test_runtime_verified": True,
 }, indent=2))
 print("R8 Release and instrumentation APK identities verified")
 PY

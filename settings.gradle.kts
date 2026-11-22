@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "WatchLauncher"
-include(":app")
+include(":app", ":release-smoke")
