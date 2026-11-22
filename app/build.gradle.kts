@@ -149,11 +149,14 @@ dependencies {
     implementation(libs.xz)
 
     debugImplementation(libs.compose.ui.tooling)
+    debugImplementation(libs.compose.ui.test.manifest)
     implementation(libs.compose.ui.tooling.preview)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
 
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
