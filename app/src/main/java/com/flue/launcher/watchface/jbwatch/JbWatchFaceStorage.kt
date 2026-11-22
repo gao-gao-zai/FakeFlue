@@ -2,11 +2,14 @@ package com.flue.launcher.watchface.jbwatch
 
 import android.content.Context
 import android.net.Uri
+import com.flue.launcher.data.DirectorySwap
 import com.flue.launcher.watchface.WatchFaceDescriptor
 import com.flue.launcher.watchface.WatchFaceType
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
@@ -40,6 +43,10 @@ object JbWatchFaceStorage {
         maximumSingleEntryBytes = 450L * 1024L * 1024L,
         maximumExpandedBytes = 500L * 1024L * 1024L,
     )
+
+    /** 安装替换与崩溃恢复互斥：恢复只在没有进行中的替换时跑。 */
+    private val installLock = Any()
+    private val recoveryDone = AtomicBoolean(false)
 
     fun rootDir(context: Context): File {
         return File(context.filesDir, ROOT_FOLDER).apply { mkdirs() }
@@ -91,7 +98,8 @@ object JbWatchFaceStorage {
         archive: File,
         limits: JbWatchArchiveLimits,
     ): WatchFaceDescriptor {
-        val tempExtract = File(context.cacheDir, "jbwatch_extract_${System.currentTimeMillis()}").apply {
+        // 唯一目录名：时间戳在同一毫秒内的两次导入会互相清掉对方的解包目录。
+        val tempExtract = File(context.cacheDir, "jbwatch_extract_${UUID.randomUUID()}").apply {
             deleteRecursively()
             mkdirs()
         }
@@ -103,10 +111,18 @@ object JbWatchFaceStorage {
                 .getOrElse { throw IllegalArgumentException("JB 表盘解析失败: ${it.message ?: it.javaClass.simpleName}", it) }
             val metadata = parseMetadata(watchRoot)
             val finalDir = File(rootDir(context), sanitizeId(metadata.id))
-            if (finalDir.exists()) {
-                finalDir.deleteRecursively()
+            // R37：重装不再「先删旧目录再拷」。先完整拷进暂存目录并校验，再整目录替换；
+            // 拷贝或替换失败时旧表盘原样保留。
+            synchronized(installLock) {
+                val staged = DirectorySwap.stagingDirFor(finalDir)
+                try {
+                    watchRoot.copyRecursively(staged, overwrite = false)
+                    require(hasJbWatchStructure(staged)) { "缺少 watch.xml / watch.pxml" }
+                    DirectorySwap.replace(staged, finalDir)
+                } finally {
+                    if (staged.exists()) staged.deleteRecursively()
+                }
             }
-            watchRoot.copyRecursively(finalDir, overwrite = true)
             val stored = parseMetadata(finalDir)
             return stored.toDescriptor()
         } finally {
@@ -117,23 +133,40 @@ object JbWatchFaceStorage {
     fun delete(context: Context, descriptor: WatchFaceDescriptor): Boolean {
         val dir = descriptor.sourceDirPath?.let(::File) ?: return false
         if (!dir.exists()) return false
+        // 只删 jbwatch 根目录下的一级表盘目录；描述符被篡改成别处路径时拒绝。
+        val root = rootDir(context)
+        if (!DirectorySwap.isStrictlyInside(root, dir)) return false
+        if (dir.canonicalFile.parentFile != root.canonicalFile) return false
         return dir.deleteRecursively()
     }
 
     fun scan(context: Context): List<WatchFaceDescriptor> {
         val root = rootDir(context)
-        val dirs = root.listFiles()?.filter { it.isDirectory } ?: emptyList()
+        recoverInterruptedInstalls(root)
+        // 安装暂存 / 替换备份目录不是表盘。
+        val dirs = root.listFiles()
+            ?.filter { it.isDirectory && !DirectorySwap.isTransactionDirName(it.name) }
+            ?: emptyList()
         return dirs.mapNotNull { dir ->
             runCatching { parseMetadata(dir).toDescriptor() }.getOrNull()
         }.sortedBy { it.displayName.lowercase(Locale.ROOT) }
+    }
+
+    /** 进程内首次扫描时还原被打断的替换（目标缺失而备份还在），并清掉过期暂存目录。 */
+    internal fun recoverInterruptedInstalls(root: File, force: Boolean = false): DirectorySwap.RecoveryReport? {
+        if (!force && !recoveryDone.compareAndSet(false, true)) return null
+        return synchronized(installLock) { runCatching { DirectorySwap.recover(root) }.getOrNull() }
     }
 
     /** R35：只读取一个已安装表盘，结果与 [scan] 里的同一项相同；读不到时返回 null，调用方退回全量扫描。 */
     fun describeInstalled(context: Context, id: String): WatchFaceDescriptor? {
         if (!id.startsWith(JBWATCH_ID_PREFIX)) return null
         val name = id.removePrefix(JBWATCH_ID_PREFIX)
-        if (name.isEmpty() || name.contains('/') || name.contains('\\') || name == "." || name == "..") return null
+        if (name.isEmpty() || name.contains('/') || name.contains('\\') || name == "." || name == ".." ||
+            DirectorySwap.isTransactionDirName(name)
+        ) return null
         val root = rootDir(context).canonicalFile
+        recoverInterruptedInstalls(root)
         val dir = File(root, name)
         if (!dir.isDirectory || dir.canonicalFile.parentFile != root) return null
         return runCatching { parseMetadata(dir).toDescriptor() }.getOrNull()?.takeIf { it.id == id }

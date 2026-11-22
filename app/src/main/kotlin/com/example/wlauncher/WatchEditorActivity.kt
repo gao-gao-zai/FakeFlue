@@ -1,5 +1,6 @@
 package com.flue.launcher
 
+import com.flue.launcher.data.readBytesBounded
 import com.flue.launcher.surface.SurfaceRuntime
 import com.flue.launcher.surface.access.SurfaceFeature
 import com.flue.launcher.surface.surfaceAllows
@@ -841,7 +842,9 @@ private fun WatchEditorRoute(
                 withContext(Dispatchers.IO) {
                     val files = uris.map { uri ->
                         val name = displayNameForUri(uri)
-                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        // R37：位图字体逐个文件限读 16MB，避免选中超大文件把内存读爆。
+                        val bytes = context.contentResolver.openInputStream(uri)
+                            ?.use { it.readBytesBounded(16L * 1024L * 1024L, name) }
                             ?: error(context.getString(R.string.watch_editor_error_read_font))
                         name to bytes
                     }

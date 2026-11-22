@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R37 バックアップのインポートとデータの信頼性 -->
+<resources>
+    <string name="backup_import_partial_title">一部のみインポートしました</string>
+    <string name="backup_import_nothing_restored">何も復元されませんでした</string>
+    <string name="backup_import_detail_restored_fmt">復元済み：%1$s</string>
+    <string name="backup_import_detail_failed_fmt">未復元：%1$s</string>
+    <string name="backup_import_detail_watch_faces_fmt">文字盤：成功 %1$d 件、失敗 %2$d 件</string>
+    <string name="backup_import_detail_items_failed_fmt">ほかに %1$d 件のファイルを復元できませんでした（既存のファイルは保持されています）</string>
+    <string name="backup_import_detail_skipped_settings_fmt">認識できない設定 %1$d 件をスキップしました</string>
+    <string name="backup_error_newer_schema_fmt">このバックアップは新しいバージョンのアプリで作成されました（形式 %1$d）。アプリを更新してからインポートしてください。</string>
+    <string name="backup_error_not_a_backup">有効なバックアップファイルではありません</string>
+    <string name="backup_error_too_large">バックアップが大きすぎるか破損しています</string>
+    <string name="backup_error_unsafe_entry">安全でないか重複した項目が含まれているため、インポートを拒否しました</string>
+    <string name="backup_error_no_space">ストレージの空き容量が不足しています</string>
+</resources>

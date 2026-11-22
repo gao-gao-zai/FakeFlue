@@ -203,14 +203,23 @@ class SurfaceRuntime private constructor(private val app: Application) {
     /** 改一项覆盖并清理不再引用的图标文件。 */
     suspend fun updatePublicOverride(componentKey: String, transform: (PublicAppOverride) -> PublicAppOverride) {
         var result: Map<String, PublicAppOverride> = emptyMap()
+        var unreadableBackup: String? = null
         app.dataStore.edit { prefs ->
             val key = stringPreferencesKey(disguiseName(PublicAppOverrides.KEY))
-            result = PublicAppOverrides.update(PublicAppOverrides.parse(prefs[key]), componentKey, transform)
+            val raw = prefs[key]
+            // R37：旧值读不出时 parse 给的是空表。先把原始值另存一份，再继续写新值；
+            // 否则这次保存会把用户的全部公开名称 / 图标覆盖掉，且无从恢复。
+            val backupKey = stringPreferencesKey(disguiseName(PublicAppOverrides.KEY) + UNREADABLE_BACKUP_SUFFIX)
+            if (PublicAppOverrides.isUnreadable(raw) && prefs[backupKey] != raw) prefs[backupKey] = raw!!
+            unreadableBackup = prefs[backupKey]
+            result = PublicAppOverrides.update(PublicAppOverrides.parse(raw), componentKey, transform)
             prefs[key] = PublicAppOverrides.serialize(result)
         }
         val dir = publicIconDir()
         val files = dir.list()?.toList().orEmpty()
-        PublicAppOverrides.orphanIcons(result, files).forEach { java.io.File(dir, it).delete() }
+        // 旧值读不出时，其中引用的图标不能当孤儿删掉。
+        PublicAppOverrides.orphanIcons(result, files, listOfNotNull(unreadableBackup))
+            .forEach { java.io.File(dir, it).delete() }
     }
 
     /** 伪装模式当前选中的表盘 ID（R19 初始表盘）；不论当前模式。 */
@@ -395,6 +404,9 @@ class SurfaceRuntime private constructor(private val app: Application) {
 
     companion object {
         private const val KEY_SELECTED_WATCHFACE = "selected_watchface_id"
+
+        /** 读不出的公开覆盖原始值另存的键后缀（R37）。 */
+        internal const val UNREADABLE_BACKUP_SUFFIX = ".unreadable_backup"
 
         @Volatile
         private var instance: SurfaceRuntime? = null

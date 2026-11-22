@@ -3,6 +3,7 @@ package com.flue.launcher.applist.background
 import android.content.Context
 import com.flue.launcher.surface.modeMediaFilesDir
 import android.net.Uri
+import com.flue.launcher.data.StagedFiles
 import com.flue.launcher.watchface.editor.WatchEditorImageCropper
 import com.flue.launcher.watchface.editor.WatchEditorSourceRect
 import java.io.File
@@ -26,11 +27,11 @@ internal suspend fun cropAndStoreAppListBackground(
 ): String? = withContext(Dispatchers.IO) {
     runCatching {
         val bitmap = WatchEditorImageCropper.cropRegion(context.contentResolver, uri, sourceRect)
-        val directory = File(context.modeMediaFilesDir(), APP_LIST_BACKGROUND_DIRECTORY).apply { mkdirs() }
-        val target = File(directory, "bg_${System.currentTimeMillis()}.png")
-        WatchEditorImageCropper.toPngStream(bitmap).use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
-        }
+        val directory = File(context.modeMediaFilesDir(), APP_LIST_BACKGROUND_DIRECTORY)
+        // R37：经临时文件写完再改名，写到一半失败不会在目录里留下半张图。
+        val target = StagedFiles.writeNew(directory, "bg", "png", write = { output ->
+            WatchEditorImageCropper.toPngStream(bitmap).use { input -> input.copyTo(output) }
+        })
         // 新图写成功了才清理目录里其他文件（含上一张）。
         directory.listFiles()?.forEach { file ->
             if (file.isFile && file.absolutePath != target.absolutePath) file.delete()
