@@ -23,7 +23,7 @@
 
 ## 应用旅程与 Release
 
-- `SliderAccessibilityJourneyTest` 在三种 UI 风格的实际 DPI 页面上执行 Android 标准调节动作和真实拖动，检查范围和当前值，确认修改只作用于草稿，右滑返回不保存。
+- `SliderAccessibilityJourneyTest` 在三种 UI 风格的实际 DPI 页面上执行 Android 标准调节动作和真实拖动，检查范围和当前值，确认修改只作用于草稿，右滑返回不保存。节点定位使用非空的可见边界，兼容 MIUIX 的 24dp 轨道，不套用 Apple/M3 的控件高度。
 - PR #17 的旧设置滑条回归恢复默认 Apple 风格，继续验证实际数值变化与不误返回。
 - `ReleaseUiSmokeTest` 在 R8 APK 的 DPI 页面直接查找标准进度节点并执行调节，随后取消并验证原值，继续执行保存和外部强制停止后的恢复检查。
 

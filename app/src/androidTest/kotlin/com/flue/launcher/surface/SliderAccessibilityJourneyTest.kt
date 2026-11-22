@@ -77,7 +77,7 @@ class SliderAccessibilityJourneyTest {
             )
             waitForText(string(R.string.screen_fit_subtitle))
             clickText(string(R.string.app_dpi_title))
-            findSlider()
+            findSlider(style)
             val original = DisplayAdaptation.effectiveDpi(context)
             val requested = if (original < 620) original + 11 else original - 11
             val node = sliderNode()
@@ -92,7 +92,7 @@ class SliderAccessibilityJourneyTest {
             assertEquals("$style accessible change", requested.toFloat(), sliderNode().rangeInfo.current)
             assertNull("$style accessibility must not save the draft", DisplayAdaptation.savedDpi(context))
 
-            val bounds = findSlider()
+            val bounds = findSlider(style)
             val endFraction = if (requested > 450) 0.2f else 0.8f
             device.swipe(bounds.centerX(), bounds.centerY(),
                 bounds.left + (bounds.width() * endFraction).toInt(), bounds.centerY(), 35)
@@ -108,14 +108,17 @@ class SliderAccessibilityJourneyTest {
         }
     }
 
-    private fun findSlider(): Rect {
+    private fun findSlider(style: UiStyle): Rect {
         for (attempt in 0 until 12) {
             device.findObjects(By.pkg(context.packageName).clazz("android.widget.SeekBar"))
-                .firstOrNull { it.visibleBounds.height() >= 32 && it.visibleBounds.width() > device.displayWidth / 3 }
+                // MIUIX uses a 24dp track; accessibility bounds need not match Apple/M3 height.
+                .firstOrNull { !it.visibleBounds.isEmpty && it.visibleBounds.width() > device.displayWidth / 3 }
                 ?.let { return Rect(it.visibleBounds) }
             scrollDown()
         }
-        error("No visible DPI slider: ${visibleTexts()}")
+        val candidates = device.findObjects(By.pkg(context.packageName).clazz("android.widget.SeekBar"))
+            .map { it.visibleBounds }
+        error("$style: No visible DPI slider; bounds=$candidates; texts=${visibleTexts()}")
     }
 
     private fun sliderNode(): AccessibilityNodeInfo {
