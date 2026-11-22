@@ -34,3 +34,8 @@ pr-body.md
 /honeycomb_main.txt
 /honeycomb_main_utf8.txt
 classes.jar
+
+# Release signing: never commit keys or their passwords (R03).
+keystore.properties
+*.jks
+*.keystore

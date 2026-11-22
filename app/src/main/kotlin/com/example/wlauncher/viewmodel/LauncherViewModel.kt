@@ -860,6 +860,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var returnResolutionJob: Job? = null
     private var watchFacePrefsHydrated = false
     private var watchFaceScanHydrated = false
+    /** R35：冷启动时只读当前表盘目录得到的描述；全量扫描完成前用它显示表盘。 */
+    @Volatile private var quickResolvedWatchFaceId: String? = null
+    private var quickResolveRequestedId: String? = null
+    private var quickResolveJob: Job? = null
     private var lastWatchFaceRefreshAt = 0L
 
     /** 最近一次全量表盘扫描的墙钟时刻；配合 [watchFaceDiskChangedSince] 做廉价变化探测。 */
@@ -3348,6 +3352,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
         }
         if (!force && watchFaceScanHydrated && now - lastWatchFaceRefreshAt < 25_000L) return
+        // R35：冷启动的首次全量扫描还在跑时，onResume 的强制刷新不再取消它重扫一遍
+        //（扫描不可中途取消，旧任务会白白跑完并和新任务争抢磁盘）。
+        if (!watchFaceScanHydrated && watchFaceRefreshJob?.isActive == true) return
         lastWatchFaceRefreshAt = now
         val canSkipUnchanged = force && watchFaceScanHydrated
         val previousScanWallClockMs = lastWatchFaceScanWallClockMs
@@ -4442,6 +4449,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (watchFaceRefreshJob?.isActive != true) {
                     refreshWatchFaces(force = true)
                 }
+                if (!watchFaceScanHydrated && watchFacePrefsHydrated) quickResolveSelectedWatchFace(requestedId)
             }
             watchFaceScanHydrated -> {
                 val fallback = available.firstOrNull { it.id == BUILT_IN_WATCHFACE_ID }
@@ -4466,7 +4474,36 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
-        _watchFaceSelectionReady.value = watchFacePrefsHydrated && watchFaceScanHydrated && selectionResolved
+        // R35：全量扫描完成前，已选的内置表盘或已单独读到的当前表盘就可以显示，不必等其余表盘。
+        val resolvedBeforeScan = match?.type == com.flue.launcher.watchface.WatchFaceType.BUILTIN ||
+            (quickResolvedWatchFaceId == requestedId && _selectedWatchFace.value.id == requestedId)
+        _watchFaceSelectionReady.value = watchFacePrefsHydrated && selectionResolved &&
+            (watchFaceScanHydrated || resolvedBeforeScan)
+    }
+
+    /**
+     * 只读当前选中的那一个表盘目录（与全量扫描里的同一项结果相同）。全量扫描先完成、
+     * 选中项已变或调试强制缺失时丢弃结果；读不到就照旧等全量扫描。
+     */
+    private fun quickResolveSelectedWatchFace(requestedId: String) {
+        if (quickResolveRequestedId == requestedId) return
+        quickResolveRequestedId = requestedId
+        quickResolveJob?.cancel()
+        quickResolveJob = viewModelScope.launch {
+            val context = getApplication<Application>()
+            val descriptor = withContext(Dispatchers.IO) {
+                runCatching {
+                    com.flue.launcher.surface.startup.StartupTimeline.section("fflue:quickResolveFace") {
+                        WatchmakerWatchFaceStorage.describeInstalled(context, requestedId)
+                            ?: JbWatchFaceStorage.describeInstalled(context, requestedId)
+                    }
+                }.getOrNull()
+            } ?: return@launch
+            if (watchFaceScanHydrated || debugForceMissingWatchFace || _selectedWatchFaceId.value != requestedId) return@launch
+            _selectedWatchFace.value = descriptor
+            quickResolvedWatchFaceId = requestedId
+            syncSelectedWatchFace()
+        }
     }
 
     /**

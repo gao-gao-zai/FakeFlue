@@ -32,6 +32,7 @@ class FlueApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.flue.launcher.surface.startup.StartupTimeline.mark(com.flue.launcher.surface.startup.StartupTimeline.Mark.APP_CREATE)
         FlueLog.configureDiagnostics(this)
         // FFlue 模式内核：模式状态、按模式投影的设置与页面守卫（R05–R08）。
         com.flue.launcher.surface.SurfaceRuntime.install(this)
@@ -41,7 +42,11 @@ class FlueApplication : Application() {
         // source through this one application-owned repository. Its cached
         // snapshot and temperature-unit preference therefore survive host
         // recreation and remain identical across those surfaces.
-        WatchWeatherSources.applicationSource = WatchWeatherRepository.default(this)
+        // R35：仓库首次建立放在后台，发布实际仓库以保留位置标签与主动刷新能力。
+        // 表盘先访问时沿用默认仓库回退；default() 加锁，两条路径取得同一个实例。
+        repositories.applicationScope.launch {
+            WatchWeatherSources.applicationSource = WatchWeatherRepository.default(this@FlueApplication)
+        }
         // 最近任务可见性偏好在多个 Activity 的 onCreate/onResume 同步读取；
         // 在后台先把 DataStore 首读做完，主线程读方就只剩内存取值。
         repositories.applicationScope.launch {
