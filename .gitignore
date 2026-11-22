@@ -39,3 +39,5 @@ classes.jar
 keystore.properties
 *.jks
 *.keystore
+*.p12
+fflue-signing-recovery.json

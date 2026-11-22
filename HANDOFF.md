@@ -1,8 +1,8 @@
 # FFlue 开发交接文档
 
-日期：2026-11-22。作者：上一位开发 agent（Claude）。
+日期：2026-11-22。原作者：上一位开发 agent（Claude）。P7 合并状态与 Release 后续任务已由 Codex 更新。
 
-本文件提交在 `p7-cache` 分支（PR #14）上，合并 P7 后会进入 main。请和用户说中文。
+本文件已随 `p7-cache`（PR #14）合并进入 main。请和用户说中文。
 
 ## 1. 项目与资料
 
@@ -11,7 +11,7 @@
 - **分阶段计划：** `/srv/projects/fflue/docs/FFlue_分阶段实施计划.md`，分 P0–P7。
 - **原版改动总结：** `/srv/projects/fflue/docs/FFlue_原版改动总结.md`
 - **P0 真机检查清单：** `/srv/projects/fflue/docs/FFlue_P0_真机检查清单.md`
-- **代码：** `/srv/projects/fflue/src`
+- **代码：** 当前云环境为 `/workspace/FakeFlue`。上述需求资料与 `/srv/projects/fflue/src` 路径来自旧开发环境。
 - **公开开发仓库：** `gao-gao-zai/FakeFlue`，这是 origin。
 - **私有仓库：** `gao-gao-zai/fflue` 只作存档。不要往公开仓库推它的历史，也不要推任何 `archive/*` 分支。
 
@@ -19,36 +19,33 @@
 
 | 阶段 | 状态 |
 | --- | --- |
-| P0–P6 | 已合并进 main。P6 是 #8–#11，main 在 `5ba6959` |
-| P7 | 三个 PR 已开，**还没合并**，在等用户说“合并” |
+| P0–P6 | 已合并进 main，P6 是 #8–#11 |
+| P7 | #12、#13、#14 已按顺序 squash 合并，合并完成时 main 为 `6635c421f6136bd59c4a8726b50b4653caaf5a82` |
 
-P7 的三个 PR 是依次叠起来的，**必须按这个顺序合并**：
+P7 的三个叠加 PR 已完成合并，下面保留原分工供追溯。
 
-| PR | 分支 | 内容 | 基准 | 头提交 |
+| PR | 分支 | 内容 | 原基准 | 状态 |
 | --- | --- | --- | --- | --- |
-| [#12](https://github.com/gao-gao-zai/FakeFlue/pull/12) | `p7-startup` | R35 启动：当前表盘不等全量扫描就显示，启动分段计时 | main | `a81fd5f` |
-| [#13](https://github.com/gao-gao-zai/FakeFlue/pull/13) | `p7-data` | R37 备份导入与数据可靠性修复 | p7-startup | `d48a458` |
-| [#14](https://github.com/gao-gao-zai/FakeFlue/pull/14) | `p7-cache` | R36 Watchmaker 表盘持久缓存，以及本交接文档 | p7-data | `900d766` + 交接文档提交 |
+| [#12](https://github.com/gao-gao-zai/FakeFlue/pull/12) | `p7-startup` | R35 启动：当前表盘不等全量扫描就显示，启动分段计时 | main | 已合并 |
+| [#13](https://github.com/gao-gao-zai/FakeFlue/pull/13) | `p7-data` | R37 备份导入与数据可靠性修复 | p7-startup | 已合并 |
+| [#14](https://github.com/gao-gao-zai/FakeFlue/pull/14) | `p7-cache` | R36 Watchmaker 表盘持久缓存，以及本交接文档 | p7-data | 已合并 |
 
-- 三个 PR 合在一起跑过全量构建：2196 个测试，0 失败，5 个跳过。
-- #12 的 CI 已通过，包括单元测试和 API 30 模拟器测试。
-- #13 和 #14 是叠在别的分支上的，CI 只在 PR 以 main 为基准时才跑，所以它们目前没有 CI 结果。
-- 本地 `/srv/projects/fflue/src` 当前在 `p7-cache` 分支，工作区干净。
-- `p7-cache` 在 `900d766` 之上多了一个只加本文件的提交，不影响代码和构建结果。
+- P7 全量测试报告共 2215 项，0 失败，5 项因缺少本地样本跳过，包含本轮新增的 19 项回归测试。
+- 三个 PR 合并前的 unit 和 API 30 模拟器 CI 均通过。
+- main 合并后的 unit CI 通过。main 的 push 事件按工作流条件跳过模拟器任务。
+- 签名 Release 工作流已实现；基于合并后应用代码的 R8 构建与新密钥签名校验已通过，验证范围见 §3 第 1 项。
 
 ## 3. 下一步要做的事
 
-1. **合并 P7。只在用户明确说“合并”后才做。** 流程见 §5。
-2. **签名 Release 任务（需要用户同意）。** 上次修改 `.github/workflows/android-ci.yml` 时被自动权限检查拦下，文件没改。用户还没答复要不要加。
-   - 设想的方案：
-     - 新增一个 `release` 任务，只在 `workflow_dispatch` 或推送 `v*` 标签时运行，需要先跑完 `unit`。
-     - 从 Secrets 解码密钥库到 `$RUNNER_TEMP`，缺任何一项 Secret 就直接失败，不产出未签名包。
-     - 执行 `assembleRelease`，用 `apksigner verify --print-certs` 校验签名。
-     - 构建结束后无论成败都删除密钥文件，然后上传 APK 和 `mapping.txt`。
-   - 用到的四个 Secrets：`FLUE_RELEASE_KEYSTORE_B64`、`FLUE_SIGNING_STORE_PASSWORD`、`FLUE_SIGNING_KEY_ALIAS`、`FLUE_SIGNING_KEY_PASSWORD`。
-   - `app/build.gradle.kts` 已经支持从环境变量读取 `FLUE_SIGNING_STORE_FILE` 等签名配置，不用改。
-   - Secrets 由用户自己在 GitHub 填，**密钥不要进聊天**。
-   - 本地未签名的 `assembleRelease`（开 R8 混淆）在 P6 合并后构建通过过。
+1. **完善签名 Release CI 与 R8 验证（用户已授权）。**
+   - 用户已选择新建发布密钥，并要求保存加密密钥库与签名 APK。新签名与旧版签名的覆盖升级兼容性需分别处理。
+   - `.github/workflows/android-ci.yml` 已增加 Release 任务。手动触发时勾选 `build_release`，或推送 `v*` 标签，先等待 unit 通过。手动选项默认关闭，保留原有手动测试入口。
+   - 从 Secrets 解码密钥库到 `$RUNNER_TEMP`，执行 `assembleRelease` 并保留 R8 混淆，再用 `apksigner verify --print-certs` 校验。
+   - 缺少签名配置时失败。结束时清理临时密钥文件，产物包含签名 APK 与 `mapping.txt`。
+   - GitHub 配置名为 `FLUE_RELEASE_KEYSTORE_B64`、`FLUE_SIGNING_STORE_PASSWORD`、`FLUE_SIGNING_KEY_ALIAS`、`FLUE_SIGNING_KEY_PASSWORD`。
+   - `app/build.gradle.kts` 已支持 `FLUE_SIGNING_STORE_FILE` 等环境变量。密钥与口令通过用户授权的安全方式配置或交付。
+   - **本地验证通过。** `assembleRelease` 已完成 R8 混淆。随后执行工作流中的实际签名步骤，APK 的包名为 `com.gaozai.surface`、版本为 `2.3.3 / 28`；`apksigner` 校验通过，证书 SHA-256 与新密钥库导出的证书一致，`mapping.txt` 非空，临时密钥库已删除。Actionlint 与 9 项脚本失败处理、清理检查均通过。GitHub Secrets 列表和公钥接口返回 403，远端 Secrets 配置与 Release 任务端到端运行仍待有权限的账号完成。
+2. **继续维护交接记录。** 远端签名任务完成后补充公开 CI 证据，只记录结论与公开证书信息。
 3. **真机验收（用户说过“不要实际测”，只能整理出来交给用户）：**
    - 启动计时：按 `docs/validation/2026-11-21-startup-timing.md` 填表，需要和原版 Flue 在同一台手表上实测。
    - P5：Root 导航守护。
@@ -57,24 +54,25 @@ P7 的三个 PR 是依次叠起来的，**必须按这个顺序合并**：
    - R37：Android 9–11 上的表现。
 4. **一直缺的输入：**
    - 旧 FFlue 的数据格式：R37 的数据迁移和 R30 的旧手势恢复都要用。
-   - 旧版签名密钥和 versionCode：versionCode 现在是占位值 28。
+   - 旧版 versionCode 仍待确认，当前保持占位值 28；用户已选择新的发布签名身份。
 5. **待用户决定：**
    - 存储的模式读不出时，现在回到完整模式，属于 fail-open。
-   - 表盘媒体替换时，旧文件在新路径写进设置之前就删了，这处保留了原调用约定。
-6. **清理：** 两个子代理的临时工作区还被 Claude 进程锁着，P7 合并后再删：
+   - 常规表盘媒体替换时，旧文件仍在新路径写进设置之前清理，`InternalWatchFaceStorage.copy*` 保留了原调用约定。
+6. **旧环境工作树清理待复核。** 旧交接记录了以下 Claude 临时工作树，当前云环境中的存在情况与锁定状态尚未核实。
    - `.claude/worktrees/agent-a2c96c506956c6824`
    - `.claude/worktrees/agent-aaf7d10596a313351`
 
-   删除命令：`git worktree remove -f -f <路径>`，然后 `git branch -D worktree-agent-...`。
-   这两个目录已经在 `.git/info/exclude` 里。
+   清理时先核对实际工作树、未提交文件及本地提交。P7 已完成合并。
 
 ## 4. 构建与测试
 
 ```bash
-systemd-run --scope --quiet -p MemoryMax=9G -p MemorySwapMax=0 /opt/fflue-toolchain/run-gradle.sh /srv/projects/fflue/src testDebugUnitTest assembleDebug compileDebugAndroidTestKotlin --console=plain > /tmp/build.log 2>&1; echo EXIT=$? >> /tmp/build.log
+cd /workspace/FakeFlue
+source /workspace/.fakeflue/android-env.sh
+/workspace/.fakeflue/gradle-8.13/bin/gradle --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process testDebugUnitTest assembleDebug compileDebugAndroidTestKotlin --console=plain
 ```
 
-- 一次构建要 5–20 分钟，放后台跑，用 `until grep -q "^EXIT=" /tmp/build.log; do sleep 5; done` 等结果。
+- 一次构建要 5–20 分钟。后台执行时保留原命令退出码，完成后核对本次生成的测试报告。
 - 不要同时在同一个目录跑两个 Gradle。
 - 测试结果在 `app/build/test-results/testDebugUnitTest/*.xml`。
 - 技术栈：
@@ -110,52 +108,22 @@ def edit(p, pairs):
 - **网络：** 经常出现 TLS 或 DNS 错误。推送最多重试 5 次，然后用 `gh api repos/gao-gao-zai/FakeFlue/branches/<分支> --jq .commit.sha` 核对远端确实到了。本机的 127.0.0.1:1080 代理没开。
 - **改 PR 基准：** `gh pr edit --base` 会失败（Projects classic 已弃用），改用 `gh api -X PATCH repos/gao-gao-zai/FakeFlue/pulls/N -f base=main`。
 - **合并：** 用 squash，`gh api -X PUT repos/gao-gao-zai/FakeFlue/pulls/N/merge -f merge_method=squash -f commit_title="标题 (#N)" -f sha=<头提交>`。
-- **叠起来的 PR 怎么合：**
-  1. 先 squash 合并 #12。
-  2. fetch，然后把下一个分支从它原来的父提交上摘下来接到 main：`git rebase --onto origin/main <原父提交> <分支>`。
-  3. 核对两点：新 HEAD 的 tree 和变基前完全一致；HEAD 的父提交等于 origin/main。
-  4. 用 `--force-with-lease` 推送，把 PR 基准改成 main，再 squash 合并。
-  5. 对下一个 PR 重复第 2–4 步。
-- **一定要确认 fetch 成功：** 有一次 fetch 失败、本地 origin/main 是旧的，结果变基出现了冲突。
-- 下面的脚本会在 fetch 失败时直接退出：
-
-```bash
-#!/bin/bash
-# 用法: stackstep.sh <分支> <原父提交> <PR号> <标题>
-set -e
-b=$1; parent=$2; pr=$3; title=$4
-cd /srv/projects/fflue/src
-for i in 1 2 3 4 5; do timeout 90 git fetch -q origin && break; sleep 10; [ $i = 5 ] && { echo FETCH FAILED; exit 1; }; done
-old=$(git rev-parse origin/$b)
-git checkout -q -B $b origin/$b
-git rebase -q --onto origin/main $parent $b
-[ "$(git rev-parse HEAD^{tree})" = "$(git rev-parse $old^{tree})" ] || { echo "TREE MISMATCH"; exit 1; }
-[ "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)" ] || { echo "PARENT MISMATCH"; exit 1; }
-git show --name-only HEAD | grep -q '\.claude' && { echo "CLAUDE PATH"; exit 1; }
-new=$(git rev-parse HEAD)
-for i in 1 2 3 4 5; do git push -q --force-with-lease=$b:$old origin $b 2>&1 | tail -1; [ "$(gh api repos/gao-gao-zai/FakeFlue/branches/$b --jq .commit.sha)" = "$new" ] && break; sleep 10; done
-[ "$(gh api repos/gao-gao-zai/FakeFlue/branches/$b --jq .commit.sha)" = "$new" ] || { echo "PUSH FAILED"; exit 1; }
-gh api -X PATCH repos/gao-gao-zai/FakeFlue/pulls/$pr -f base=main --jq '.base.ref'
-sleep 5
-gh api -X PUT repos/gao-gao-zai/FakeFlue/pulls/$pr/merge -f merge_method=squash -f commit_title="$title (#$pr)" -f sha=$new --jq '.merged, .sha'
-```
-
-P7 的合并顺序：
-
-1. 合并 #12：`gh api -X PUT repos/gao-gao-zai/FakeFlue/pulls/12/merge -f merge_method=squash -f commit_title="P7：启动不等全量表盘扫描、启动分段计时（R35） (#12)" -f sha=a81fd5f…`。先用 `gh api repos/gao-gao-zai/FakeFlue/pulls/12 --jq .head.sha` 取完整 sha。
-2. `stackstep.sh p7-data a81fd5f 13 "P7：备份导入与数据可靠性修复（R37）"`
-3. `stackstep.sh p7-cache d48a458 14 "P7：Watchmaker 表盘持久准备缓存（R36）"`
-4. 本地切到 main，`git merge --ff-only origin/main`。核对 main 的 tree 和 `p7-cache` 合并前头提交的 tree 一致，一致就说明合并后的内容正是构建通过的那一份（外加本文件）。
+- **P7 合并已完成。** #12 → #13 → #14 的叠加分支合并步骤属于历史记录，当前 main 已包含全部 P7 改动。
+- **以后处理叠加 PR 时：**
+  1. 确认用户授权合并，按依赖顺序先合并最底层 PR。
+  2. 确认 fetch 成功后，用 `git rebase --onto origin/main <原父提交> <分支>` 更新下一层分支。
+  3. 核对变基前后 tree 一致，并用 `git merge-base --is-ancestor origin/main <分支>` 确认最新 main 已是分支祖先。
+  4. 用 `--force-with-lease` 推送，调整 PR 基准并完成所需 CI 验证，再执行授权的 squash 合并。
 
 ## 6. 用户的固定要求
 
 - 说中文。
 - **只在用户说“合并”时才合并。** 提交和推送只在用户要求的流程里做。
-- 签名密钥不能出现在聊天里，用户会给服务器上的文件路径。不要往仓库、附件或日志里放任何密钥、口令或一次性邀请链接。
+- 签名密钥库按用户确认的方式加密备份，恢复口令单独保存。代码仓库、构建日志和交接记录使用公开证书信息与验证结论。
 - 代理只按单条命令设置，不改全局的 git、npm 或系统代理配置。
 - 不要杀其他用户（ctyun）的进程。
 - 不做真机测试。CI 模拟器只有 Android 11。
-- 签名配置和 versionCode 保持占位值。
+- 签名身份确认后再落实 Release 签名配置，versionCode 仍为占位值 28。
 - 不要自己定时轮询 CI。
 
 ## 7. P7 各块的要点（细节见各 PR 描述）

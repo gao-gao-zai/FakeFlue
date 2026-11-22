@@ -3,14 +3,22 @@
 # unit：每次 push / PR 运行 JVM 单元测试（JUnit + Robolectric）并构建 Debug APK。
 # emulator：仅 PR 和手动触发时运行，在模拟器上跑不需要 Root / SIM 的仪器测试；
 #           没有 app/src/androidTest 时自动跳过。
+# release 手动选择或推送 v* 标签时构建并校验签名 APK。
 
 name: Android CI
 
 on:
   push:
     branches: [main, "yzp/**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      build_release:
+        description: 构建签名 Release APK
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -127,4 +135,59 @@ jobs:
           path: |
             app/build/reports/androidTests/
             build/spike/
+          retention-days: 7
+
+  release:
+    name: 签名 Release 构建
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.build_release) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: 构建并校验签名 Release
+        env:
+          FLUE_RELEASE_KEYSTORE_B64: ${{ secrets.FLUE_RELEASE_KEYSTORE_B64 }}
+          FLUE_SIGNING_STORE_PASSWORD: ${{ secrets.FLUE_SIGNING_STORE_PASSWORD }}
+          FLUE_SIGNING_KEY_ALIAS: ${{ secrets.FLUE_SIGNING_KEY_ALIAS }}
+          FLUE_SIGNING_KEY_PASSWORD: ${{ secrets.FLUE_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for secret_name in FLUE_RELEASE_KEYSTORE_B64 FLUE_SIGNING_STORE_PASSWORD FLUE_SIGNING_KEY_ALIAS FLUE_SIGNING_KEY_PASSWORD; do
+            if [[ -z "${!secret_name:-}" ]]; then
+              echo "::error::缺少 GitHub Secret $secret_name"
+              exit 1
+            fi
+          done
+          export FLUE_SIGNING_STORE_FILE="$RUNNER_TEMP/fflue-release.keystore"
+          trap 'rm -f -- "$FLUE_SIGNING_STORE_FILE"' EXIT
+          printf '%s' "$FLUE_RELEASE_KEYSTORE_B64" | base64 --decode > "$FLUE_SIGNING_STORE_FILE"
+          unset FLUE_RELEASE_KEYSTORE_B64
+          bash gradlew --max-workers=2 assembleRelease --console=plain
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          test -s app/build/outputs/mapping/release/mapping.txt
+
+      - name: 清理签名密钥库
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/fflue-release.keystore"
+
+      - name: 上传签名 Release APK 和混淆映射
+        uses: actions/upload-artifact@v6
+        with:
+          name: Flue-release
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
           retention-days: 7
