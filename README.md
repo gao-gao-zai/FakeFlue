@@ -163,10 +163,10 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 工作流配置见 [android-ci.yml](.github/workflows/android-ci.yml)。
 
 - 推送到 `main`、`yzp/**` 或提交 Pull Request 时执行单元测试和 Debug 构建。
-- Pull Request 和手动触发时执行 API 30 模拟器测试。
+- Pull Request 和手动触发时执行 API 30 模拟器测试，分别验证 Debug 完整仪器套件与 R8 Release 正常界面流程。Release 验收包含首次引导、设置与备份页面、DPI 取消和保存，以及强制停止后的冷启动持久化。
 - 手动触发时勾选 `build_release`，或推送 `v*` 标签，执行签名 Release 构建。Release 任务先等待单元测试和 Debug 构建通过。
 
-签名 Release 使用仓库 Actions Secrets。
+模拟器中的 R8 Release 使用本次 CI 临时生成的测试签名，真实发布签名通过下列仓库 Actions Secrets 配置。本地签名构建仍可使用已有环境变量入口。
 
 - `FLUE_RELEASE_KEYSTORE_B64` 保存密钥库文件的 Base64 编码。
 - `FLUE_SIGNING_STORE_PASSWORD` 保存密钥库口令。

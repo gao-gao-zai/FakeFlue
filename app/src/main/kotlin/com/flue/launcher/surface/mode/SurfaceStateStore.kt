@@ -15,7 +15,11 @@ class SurfaceStateStore(private val prefs: SharedPreferences) : SurfaceStateStor
         context.applicationContext.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE),
     )
 
-    override fun readMode(): SurfaceMode? = SurfaceMode.fromStored(prefs.getString(KEY_MODE, null))
+    override fun readMode(): SurfaceMode? = try {
+        SurfaceMode.fromStored(prefs.getString(KEY_MODE, null))
+    } catch (_: ClassCastException) {
+        null
+    }
 
     override fun writeMode(mode: SurfaceMode): Boolean = prefs.edit().putString(KEY_MODE, mode.name).commit()
 

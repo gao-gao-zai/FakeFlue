@@ -1,5 +1,6 @@
 package com.flue.launcher.surface
 
+import android.content.ComponentName
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -26,7 +27,11 @@ class LauncherSmokeTest {
     fun installedPackageUsesFflueIdentity() {
         // R03：安装名称为 FFlue，applicationId 为 com.gaozai.surface，Kotlin namespace 保持原版。
         assertEquals("com.gaozai.surface", context.packageName)
-        assertEquals("com.flue.launcher", com.flue.launcher.BuildConfig::class.java.`package`?.name)
+        val launcher = context.packageManager.getActivityInfo(
+            ComponentName(context.packageName, "com.flue.launcher.LauncherActivity"),
+            0,
+        )
+        assertEquals("com.flue.launcher", launcher.name.substringBeforeLast('.'))
     }
 
     @Test

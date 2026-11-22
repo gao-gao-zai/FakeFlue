@@ -12,6 +12,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.flue.launcher.applist.background.AppListBackgroundJson
 import com.flue.launcher.data.NonClosingOutputStream
 import com.flue.launcher.data.StagedFiles
+import com.flue.launcher.data.MediaSettingsFiles
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import com.flue.launcher.data.repository.WidgetRepository
 import com.flue.launcher.surface.DISGUISE_MEDIA_DIR
 import com.flue.launcher.surface.apps.PublicAppOverrides
@@ -434,149 +439,156 @@ object FlueBackupManager {
             val restored = ArrayList<String>()
             val issues = ArrayList<FlueBackupImportIssue>()
 
-            // ---- 第 2 步：先把媒体写成新文件 ----
-            fun stage(section: String, item: String, entry: String?, directory: File, fallbackExtension: String): StageOutcome {
-                if (entry.isNullOrBlank() || entry == "null") return StageOutcome.Absent
-                val source = resolveBackupEntry(tempRoot, entry)
-                    ?: return StageOutcome.Failed.also {
-                        issues += FlueBackupImportIssue(section, item, "备份里缺少文件")
-                    }
-                return try {
-                    StageOutcome.Staged(staging.stageFile(source, directory, mediaExtension(source, fallbackExtension)).absolutePath)
-                } catch (error: Exception) {
-                    issues += FlueBackupImportIssue(section, item, error.describe())
-                    StageOutcome.Failed
-                }
-            }
-            val internalRoot = File(context.filesDir, "internal_watchfaces")
-            val disguiseInternalRoot = File(disguiseMediaRoot(context), "internal_watchfaces")
-
-            val settingsSection = FlueBackupOptions.SECTION_SETTINGS
-            val appListBackground = if (selected.settings) {
-                stage(
-                    settingsSection, "appListBackground", manifest.optString("appListBackgroundEntry"),
-                    File(internalRoot, APP_LIST_BACKGROUND_MEDIA_FOLDER), "png",
-                )
-            } else StageOutcome.Absent
-            val disguiseManifest = if (selected.settings) manifest.optJSONObject(DisguiseBackup.MANIFEST_KEY) else null
-            val disguisePhoto = stage(settingsSection, "disguisePhoto", disguiseManifest?.optString("photoEntry"), File(disguiseInternalRoot, "photo"), "png")
-            val disguiseVideo = stage(settingsSection, "disguiseVideo", disguiseManifest?.optString("videoEntry"), File(disguiseInternalRoot, "video"), "mp4")
-            val disguiseFont = stage(settingsSection, "disguiseFont", disguiseManifest?.optString("fontEntry"), File(disguiseInternalRoot, "font"), "ttf")
-            val disguiseBackground = stage(
-                settingsSection, "disguiseAppListBackground", disguiseManifest?.optString("appListBackgroundEntry"),
-                File(disguiseInternalRoot, APP_LIST_BACKGROUND_MEDIA_FOLDER), "png",
-            )
-            disguiseManifest?.optJSONArray("publicIcons").toStringList().forEach { entry ->
-                val name = DisguiseBackup.publicIconName(entry) ?: return@forEach
-                val source = resolveBackupEntry(tempRoot, entry)
-                if (source == null) {
-                    issues += FlueBackupImportIssue(settingsSection, "publicIcon:$name", "备份里缺少文件")
-                    return@forEach
-                }
-                try {
-                    staging.stageReplacement(source, File(File(disguiseMediaRoot(context), PublicAppOverrides.ICON_DIR), name))
-                } catch (error: Exception) {
-                    issues += FlueBackupImportIssue(settingsSection, "publicIcon:$name", error.describe())
-                }
-            }
-
-            // 图片 / 视频表盘：媒体与字体任一失败，整个分区不写，本机原配置保持不变。
-            val fontOutcomes = HashMap<String, StageOutcome>()
-            fun stageFaceSection(section: String, json: JSONObject?, mediaFolder: String, fallback: String): FaceMedia? {
-                if (json == null) return FaceMedia(StageOutcome.Absent, StageOutcome.Absent)
-                val media = stage(section, "media", json.optString("mediaEntry"), File(internalRoot, mediaFolder), fallback)
-                val fontEntry = json.optString("fontEntry")
-                val font = fontOutcomes[fontEntry] ?: stage(section, "font", fontEntry, File(internalRoot, "font"), "ttf")
-                    .also { fontOutcomes[fontEntry] = it }
-                if (media is StageOutcome.Failed || font is StageOutcome.Failed) {
-                    if (font is StageOutcome.Failed && issues.none { it.section == section && it.item == "font" }) {
-                        issues += FlueBackupImportIssue(section, "font", "字体文件恢复失败")
-                    }
-                    return null
-                }
-                return FaceMedia(media, font)
-            }
-            val photoJson = manifest.optJSONObject("photoWatchFace")
-            val videoJson = manifest.optJSONObject("videoWatchFace")
-            val photoMedia = if (selected.photoWatchFace) {
-                stageFaceSection(FlueBackupOptions.SECTION_PHOTO_WATCH_FACE, photoJson, "photo", "png")
-            } else null
-            val videoMedia = if (selected.videoWatchFace) {
-                stageFaceSection(FlueBackupOptions.SECTION_VIDEO_WATCH_FACE, videoJson, "video", "mp4")
-            } else null
-
-            // ---- 第 3 步：一次提交全部配置 ----
             var skippedSettings = 0
-            val sectionsInEdit = ArrayList<String>()
-            val committedPreferences = try {
-                context.dataStore.edit { prefs ->
-                    sectionsInEdit.clear()
-                    skippedSettings = 0
-                    if (selected.settings) {
-                        val backgroundKey = LauncherViewModel.KEY_APP_LIST_BACKGROUND
-                        val disguiseBackgroundKey = disguiseKey(backgroundKey)
-                        val previousBackground = prefs[backgroundKey]
-                        val previousDisguiseBackground = prefs[disguiseBackgroundKey]
-                        skippedSettings += prefs.applyPreferenceJson(
-                            manifest.optJSONObject("settings"),
-                            availableAppKeys = availableAppKeys,
-                            validWidgetKeys = validWidgetKeys,
-                            excludeNames = settingsExcludedNames
-                        )
-                        prefs.applyBackgroundOutcome(backgroundKey, appListBackground, previousBackground)
-                        prefs.applyBackgroundOutcome(disguiseBackgroundKey, disguiseBackground, previousDisguiseBackground)
-                        (disguisePhoto as? StageOutcome.Staged)?.let { prefs[disguiseKey(LauncherViewModel.KEY_BUILTIN_PHOTO_PATH)] = it.path }
-                        (disguiseVideo as? StageOutcome.Staged)?.let { prefs[disguiseKey(LauncherViewModel.KEY_BUILTIN_VIDEO_PATH)] = it.path }
-                        (disguiseFont as? StageOutcome.Staged)?.let { prefs[disguiseKey(LauncherViewModel.KEY_WATCHFACE_FONT_PATH)] = it.path }
-                        sectionsInEdit += FlueBackupOptions.SECTION_SETTINGS
-                    }
-                    if (selected.appOrder) {
-                        val appOrder = manifest.optJSONArray("appOrder")
-                            .toStringList()
-                            .filterAppKeys(availableAppKeys)
-                        if (appOrder.isEmpty()) prefs.remove(LauncherViewModel.KEY_APP_ORDER) else prefs[LauncherViewModel.KEY_APP_ORDER] = appOrder.joinToString(",")
-                        sectionsInEdit += FlueBackupOptions.SECTION_APP_ORDER
-                    }
-                    if (selected.widgetOrder) {
-                        val widgets = manifest.optJSONArray("widgetOrder")
-                            .toStringList()
-                            .filter { raw -> raw.widgetKeyPart() in validWidgetKeys }
-                        if (widgets.isEmpty()) prefs.remove(LauncherViewModel.KEY_SIDE_SCREEN_WIDGETS) else prefs[LauncherViewModel.KEY_SIDE_SCREEN_WIDGETS] = widgets.joinToString("|")
-                        sectionsInEdit += FlueBackupOptions.SECTION_WIDGET_ORDER
-                    }
-                    if (selected.sideScreenOrder) {
-                        val shortcuts = manifest.optJSONArray("sideScreenShortcuts")
-                            .toNullableStringList()
-                            .map { value -> value?.takeIf { availableAppKeys == null || it in availableAppKeys } }
-                        val serializedShortcuts = serializeShortcuts(shortcuts)
-                        if (serializedShortcuts.isEmpty()) prefs.remove(LauncherViewModel.KEY_SIDE_SCREEN_SHORTCUTS) else prefs[LauncherViewModel.KEY_SIDE_SCREEN_SHORTCUTS] = serializedShortcuts
-                        sectionsInEdit += FlueBackupOptions.SECTION_SIDE_SCREEN_ORDER
-                    }
-                    if (photoMedia != null) {
-                        skippedSettings += prefs.applyFaceSection(photoJson, photoMedia, LauncherViewModel.KEY_BUILTIN_PHOTO_PATH)
-                        sectionsInEdit += FlueBackupOptions.SECTION_PHOTO_WATCH_FACE
-                    }
-                    if (videoMedia != null) {
-                        skippedSettings += prefs.applyFaceSection(videoJson, videoMedia, LauncherViewModel.KEY_BUILTIN_VIDEO_PATH)
-                        sectionsInEdit += FlueBackupOptions.SECTION_VIDEO_WATCH_FACE
+            MediaSettingsFiles.withTransaction {
+                // ---- 第 2 步：先把媒体写成新文件 ----
+                fun stage(section: String, item: String, entry: String?, directory: File, fallbackExtension: String): StageOutcome {
+                    if (entry.isNullOrBlank() || entry == "null") return StageOutcome.Absent
+                    val source = resolveBackupEntry(tempRoot, entry)
+                        ?: return StageOutcome.Failed.also {
+                            issues += FlueBackupImportIssue(section, item, "备份里缺少文件")
+                        }
+                    return try {
+                        StageOutcome.Staged(staging.stageFile(source, directory, mediaExtension(source, fallbackExtension)).absolutePath)
+                    } catch (error: Exception) {
+                        issues += FlueBackupImportIssue(section, item, error.describe())
+                        StageOutcome.Failed
                     }
                 }
-            } catch (error: Throwable) {
-                // 配置没提交：新写的媒体全部删掉，旧文件、旧配置一个不动。
-                staging.rollback()
-                throw error
-            }
-            restored += sectionsInEdit
+                val internalRoot = File(context.filesDir, "internal_watchfaces")
+                val disguiseInternalRoot = File(disguiseMediaRoot(context), "internal_watchfaces")
 
-            // ---- 第 4 步：提交成功后才清理旧文件、换上公开图标 ----
-            staging.commit(committedPreferences.referencedMediaFiles()).forEach { failedName ->
-                issues += FlueBackupImportIssue(settingsSection, "publicIcon:$failedName", "图标替换失败")
+                val settingsSection = FlueBackupOptions.SECTION_SETTINGS
+                val appListBackground = if (selected.settings) {
+                    stage(
+                        settingsSection, "appListBackground", manifest.optString("appListBackgroundEntry"),
+                        File(internalRoot, APP_LIST_BACKGROUND_MEDIA_FOLDER), "png",
+                    )
+                } else StageOutcome.Absent
+                val disguiseManifest = if (selected.settings) manifest.optJSONObject(DisguiseBackup.MANIFEST_KEY) else null
+                val disguisePhoto = stage(settingsSection, "disguisePhoto", disguiseManifest?.optString("photoEntry"), File(disguiseInternalRoot, "photo"), "png")
+                val disguiseVideo = stage(settingsSection, "disguiseVideo", disguiseManifest?.optString("videoEntry"), File(disguiseInternalRoot, "video"), "mp4")
+                val disguiseFont = stage(settingsSection, "disguiseFont", disguiseManifest?.optString("fontEntry"), File(disguiseInternalRoot, "font"), "ttf")
+                val disguiseBackground = stage(
+                    settingsSection, "disguiseAppListBackground", disguiseManifest?.optString("appListBackgroundEntry"),
+                    File(disguiseInternalRoot, APP_LIST_BACKGROUND_MEDIA_FOLDER), "png",
+                )
+                disguiseManifest?.optJSONArray("publicIcons").toStringList().forEach { entry ->
+                    val name = DisguiseBackup.publicIconName(entry) ?: return@forEach
+                    val source = resolveBackupEntry(tempRoot, entry)
+                    if (source == null) {
+                        issues += FlueBackupImportIssue(settingsSection, "publicIcon:$name", "备份里缺少文件")
+                        return@forEach
+                    }
+                    try {
+                        staging.stageReplacement(source, File(File(disguiseMediaRoot(context), PublicAppOverrides.ICON_DIR), name))
+                    } catch (error: Exception) {
+                        issues += FlueBackupImportIssue(settingsSection, "publicIcon:$name", error.describe())
+                    }
+                }
+
+                // 图片 / 视频表盘：媒体与字体任一失败，整个分区不写，本机原配置保持不变。
+                val fontOutcomes = HashMap<String, StageOutcome>()
+                fun stageFaceSection(section: String, json: JSONObject?, mediaFolder: String, fallback: String): FaceMedia? {
+                    if (json == null) return FaceMedia(StageOutcome.Absent, StageOutcome.Absent)
+                    val media = stage(section, "media", json.optString("mediaEntry"), File(internalRoot, mediaFolder), fallback)
+                    val fontEntry = json.optString("fontEntry")
+                    val font = fontOutcomes[fontEntry] ?: stage(section, "font", fontEntry, File(internalRoot, "font"), "ttf")
+                        .also { fontOutcomes[fontEntry] = it }
+                    if (media is StageOutcome.Failed || font is StageOutcome.Failed) {
+                        if (font is StageOutcome.Failed && issues.none { it.section == section && it.item == "font" }) {
+                            issues += FlueBackupImportIssue(section, "font", "字体文件恢复失败")
+                        }
+                        return null
+                    }
+                    return FaceMedia(media, font)
+                }
+                val photoJson = manifest.optJSONObject("photoWatchFace")
+                val videoJson = manifest.optJSONObject("videoWatchFace")
+                val photoMedia = if (selected.photoWatchFace) {
+                    stageFaceSection(FlueBackupOptions.SECTION_PHOTO_WATCH_FACE, photoJson, "photo", "png")
+                } else null
+                val videoMedia = if (selected.videoWatchFace) {
+                    stageFaceSection(FlueBackupOptions.SECTION_VIDEO_WATCH_FACE, videoJson, "video", "mp4")
+                } else null
+
+                currentCoroutineContext().ensureActive()
+                withContext(NonCancellable) {
+                    // ---- 第 3 步：一次提交全部配置 ----
+                    val sectionsInEdit = ArrayList<String>()
+                    val committedPreferences = try {
+                        context.dataStore.edit { prefs ->
+                            sectionsInEdit.clear()
+                            skippedSettings = 0
+                            if (selected.settings) {
+                                val backgroundKey = LauncherViewModel.KEY_APP_LIST_BACKGROUND
+                                val disguiseBackgroundKey = disguiseKey(backgroundKey)
+                                val previousBackground = prefs[backgroundKey]
+                                val previousDisguiseBackground = prefs[disguiseBackgroundKey]
+                                skippedSettings += prefs.applyPreferenceJson(
+                                    manifest.optJSONObject("settings"),
+                                    availableAppKeys = availableAppKeys,
+                                    validWidgetKeys = validWidgetKeys,
+                                    excludeNames = settingsExcludedNames
+                                )
+                                prefs.applyBackgroundOutcome(backgroundKey, appListBackground, previousBackground)
+                                prefs.applyBackgroundOutcome(disguiseBackgroundKey, disguiseBackground, previousDisguiseBackground)
+                                (disguisePhoto as? StageOutcome.Staged)?.let { prefs[disguiseKey(LauncherViewModel.KEY_BUILTIN_PHOTO_PATH)] = it.path }
+                                (disguiseVideo as? StageOutcome.Staged)?.let { prefs[disguiseKey(LauncherViewModel.KEY_BUILTIN_VIDEO_PATH)] = it.path }
+                                (disguiseFont as? StageOutcome.Staged)?.let { prefs[disguiseKey(LauncherViewModel.KEY_WATCHFACE_FONT_PATH)] = it.path }
+                                sectionsInEdit += FlueBackupOptions.SECTION_SETTINGS
+                            }
+                            if (selected.appOrder) {
+                                val appOrder = manifest.optJSONArray("appOrder")
+                                    .toStringList()
+                                    .filterAppKeys(availableAppKeys)
+                                if (appOrder.isEmpty()) prefs.remove(LauncherViewModel.KEY_APP_ORDER) else prefs[LauncherViewModel.KEY_APP_ORDER] = appOrder.joinToString(",")
+                                sectionsInEdit += FlueBackupOptions.SECTION_APP_ORDER
+                            }
+                            if (selected.widgetOrder) {
+                                val widgets = manifest.optJSONArray("widgetOrder")
+                                    .toStringList()
+                                    .filter { raw -> raw.widgetKeyPart() in validWidgetKeys }
+                                if (widgets.isEmpty()) prefs.remove(LauncherViewModel.KEY_SIDE_SCREEN_WIDGETS) else prefs[LauncherViewModel.KEY_SIDE_SCREEN_WIDGETS] = widgets.joinToString("|")
+                                sectionsInEdit += FlueBackupOptions.SECTION_WIDGET_ORDER
+                            }
+                            if (selected.sideScreenOrder) {
+                                val shortcuts = manifest.optJSONArray("sideScreenShortcuts")
+                                    .toNullableStringList()
+                                    .map { value -> value?.takeIf { availableAppKeys == null || it in availableAppKeys } }
+                                val serializedShortcuts = serializeShortcuts(shortcuts)
+                                if (serializedShortcuts.isEmpty()) prefs.remove(LauncherViewModel.KEY_SIDE_SCREEN_SHORTCUTS) else prefs[LauncherViewModel.KEY_SIDE_SCREEN_SHORTCUTS] = serializedShortcuts
+                                sectionsInEdit += FlueBackupOptions.SECTION_SIDE_SCREEN_ORDER
+                            }
+                            if (photoMedia != null) {
+                                skippedSettings += prefs.applyFaceSection(photoJson, photoMedia, LauncherViewModel.KEY_BUILTIN_PHOTO_PATH)
+                                sectionsInEdit += FlueBackupOptions.SECTION_PHOTO_WATCH_FACE
+                            }
+                            if (videoMedia != null) {
+                                skippedSettings += prefs.applyFaceSection(videoJson, videoMedia, LauncherViewModel.KEY_BUILTIN_VIDEO_PATH)
+                                sectionsInEdit += FlueBackupOptions.SECTION_VIDEO_WATCH_FACE
+                            }
+                        }
+                    } catch (error: Throwable) {
+                        // 配置没提交：新写的媒体全部删掉，旧文件、旧配置一个不动。
+                        staging.rollback()
+                        throw error
+                    }
+                    restored += sectionsInEdit
+
+                    // ---- 第 4 步：提交成功后才清理旧文件、换上公开图标 ----
+                    staging.commit(MediaSettingsFiles.referencedFiles(committedPreferences)).forEach { failedName ->
+                        issues += FlueBackupImportIssue(settingsSection, "publicIcon:$failedName", "图标替换失败")
+                    }
+                    if (disguisePhoto is StageOutcome.Staged || disguiseVideo is StageOutcome.Staged ||
+                        photoMedia?.media is StageOutcome.Staged || videoMedia?.media is StageOutcome.Staged
+                    ) {
+                        WatchFacePhotoCache.clear()
+                    }
+
+                }
             }
-            if (disguisePhoto is StageOutcome.Staged || disguiseVideo is StageOutcome.Staged ||
-                photoMedia?.media is StageOutcome.Staged || videoMedia?.media is StageOutcome.Staged
-            ) {
-                WatchFacePhotoCache.clear()
-            }
+            currentCoroutineContext().ensureActive()
 
             // ---- 第 5 步：内嵌 .watch 逐个安装 ----
             var restoredFaces = 0
@@ -585,6 +597,7 @@ object FlueBackupManager {
                 val archives = manifest.optJSONObject("watchFiles")?.optJSONArray("archives")
                 val section = FlueBackupOptions.SECTION_WATCH_FILES
                 for (i in 0 until (archives?.length() ?: 0)) {
+                    currentCoroutineContext().ensureActive()
                     val entry = archives?.optString(i).orEmpty()
                     if (entry.isBlank()) continue
                     val label = entry.substringAfterLast('/').take(96)
@@ -691,23 +704,6 @@ object FlueBackupManager {
                 runCatching { StagedFiles.moveReplacing(temp, target) }
                     .fold(onSuccess = { null }, onFailure = { temp.delete(); target.name })
             }
-        }
-    }
-
-    /** 当前配置实际引用的媒体，也包括此次未选择或恢复失败的分区。 */
-    private fun Preferences.referencedMediaFiles(): List<File> = buildList {
-        listOf(
-            LauncherViewModel.KEY_BUILTIN_PHOTO_PATH,
-            LauncherViewModel.KEY_BUILTIN_VIDEO_PATH,
-            LauncherViewModel.KEY_WATCHFACE_FONT_PATH,
-        ).forEach { key ->
-            this@referencedMediaFiles[key]?.let { add(File(it)) }
-            this@referencedMediaFiles[disguiseKey(key)]?.let { add(File(it)) }
-        }
-        val backgroundKey = LauncherViewModel.KEY_APP_LIST_BACKGROUND
-        listOf(backgroundKey, disguiseKey(backgroundKey)).forEach { key ->
-            AppListBackgroundJson.decodeOrDefault(this@referencedMediaFiles[key]).imagePath
-                ?.let { add(File(it)) }
         }
     }
 

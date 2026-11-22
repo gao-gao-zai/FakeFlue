@@ -28,11 +28,11 @@ object InternalWatchFaceStorage {
     internal const val MAX_VIDEO_BYTES = 500L * 1024L * 1024L
     internal const val MAX_FONT_BYTES = 100L * 1024L * 1024L
 
-    // R37：以下 copy* 都是「先写新文件、校验通过后再删旧文件」。解码失败、字体校验失败、
-    // 超过大小上限或写盘失败时返回 null，目录里原来那份仍在、仍被配置引用。
+    // copy* 只写新文件，配置提交与旧文件清理由 MediaSettingsFiles 协调。
+    // 解码、校验、限额或写盘失败时，旧文件和配置仍可使用。
 
-    fun copyPhoto(context: Context, uri: Uri): String? = runCatching {
-        val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$PHOTO_DIR")
+    fun copyPhoto(context: Context, uri: Uri, mediaRoot: File = context.modeMediaFilesDir()): String? = runCatching {
+        val root = File(mediaRoot, "internal_watchfaces/$PHOTO_DIR")
 
         val metrics = context.resources.displayMetrics
         val targetWidth = metrics.widthPixels.coerceAtLeast(1)
@@ -45,14 +45,14 @@ object InternalWatchFaceStorage {
         } finally {
             croppedBitmap.recycle()
         }
-        StagedFiles.pruneExcept(root, listOf(target))
         target.absolutePath
     }.getOrNull()
 
-    fun copyVideo(context: Context, uri: Uri): String? = copyMedia(context, uri, VIDEO_DIR, "video")
+    fun copyVideo(context: Context, uri: Uri, mediaRoot: File = context.modeMediaFilesDir()): String? =
+        copyMedia(context, uri, mediaRoot, VIDEO_DIR, "video")
 
-    fun copyFont(context: Context, uri: Uri): String? = runCatching {
-        val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$FONT_DIR")
+    fun copyFont(context: Context, uri: Uri, mediaRoot: File = context.modeMediaFilesDir()): String? = runCatching {
+        val root = File(mediaRoot, "internal_watchfaces/$FONT_DIR")
 
         val extension = resolveExtension(context, uri, "ttf")
             .lowercase()
@@ -68,7 +68,6 @@ object InternalWatchFaceStorage {
                 validate = { file -> Typeface.createFromFile(file) },
             )
         }
-        StagedFiles.pruneExcept(root, listOf(target))
         target.absolutePath
     }.getOrNull()
 
@@ -81,11 +80,12 @@ object InternalWatchFaceStorage {
     private fun copyMedia(
         context: Context,
         uri: Uri,
+        mediaRoot: File,
         folderName: String,
         fallbackExtension: String
     ): String? {
         return runCatching {
-            val root = File(context.modeMediaFilesDir(), "internal_watchfaces/$folderName")
+            val root = File(mediaRoot, "internal_watchfaces/$folderName")
 
             val extension = resolveExtension(context, uri, fallbackExtension)
                 .replace(Regex("[^A-Za-z0-9]"), "")
@@ -97,7 +97,6 @@ object InternalWatchFaceStorage {
                     stream.copyToBounded(output, MAX_VIDEO_BYTES, "视频文件")
                 })
             }
-            StagedFiles.pruneExcept(root, listOf(target))
             target.absolutePath
         }.getOrNull()
     }

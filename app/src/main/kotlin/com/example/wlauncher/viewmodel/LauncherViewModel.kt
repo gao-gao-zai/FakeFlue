@@ -49,6 +49,12 @@ import com.flue.launcher.motion.FlueMotionProfile
 import com.flue.launcher.motion.FlueMotionProfileJson
 import com.flue.launcher.motion.FlueMotionProfiles
 import com.flue.launcher.applist.background.AppListBackgroundConfig
+import com.flue.launcher.applist.background.cropAndStoreAppListBackground
+import com.flue.launcher.data.MediaSettingsFiles
+import com.flue.launcher.surface.config.ConfigScopePin
+import com.flue.launcher.watchface.editor.WatchEditorSourceRect
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import com.flue.launcher.applist.background.AppListBackgroundJson
 import com.flue.launcher.applist.background.AppListBackgroundMode
 import com.flue.launcher.layout.FlueLayoutProfile
@@ -2911,31 +2917,35 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * 需要保证。落盘走去抖 —— 模糊与遮罩两条滑块拖动时每帧都会调进来。
      */
     private fun updateAppListBackground(
+        field: String,
         transform: (AppListBackgroundConfig) -> AppListBackgroundConfig,
     ) {
         val next = transform(_appListBackground.value).sanitized()
-        if (next == _appListBackground.value) return
         _appListBackground.value = next
-        val payload = runCatching { AppListBackgroundJson.encode(next) }.getOrNull() ?: return
-        persistDebounced("key_app_list_background") {
-            store.edit { it[KEY_APP_LIST_BACKGROUND] = payload }
+        val scope = submittedScope().scope
+        persistDebounced("key_app_list_background_${scope.name}_$field") {
+            MediaSettingsFiles.edit(getApplication()) {
+                store.edit { prefs ->
+                    MediaSettingsFiles.updateBackground(prefs, transform)
+                }
+            }
         }
     }
 
     fun setAppListBackgroundMode(mode: AppListBackgroundMode) {
-        updateAppListBackground { it.copy(mode = mode) }
+        updateAppListBackground("mode") { it.copy(mode = mode) }
     }
 
     fun setAppListBackgroundColor(argb: Int) {
-        updateAppListBackground { it.copy(customColorArgb = argb) }
+        updateAppListBackground("color") { it.copy(customColorArgb = argb) }
     }
 
     fun setAppListBackgroundBlurPercent(percent: Int) {
-        updateAppListBackground { it.copy(blurPercent = percent) }
+        updateAppListBackground("blur") { it.copy(blurPercent = percent) }
     }
 
     fun setAppListBackgroundScrimPercent(percent: Int) {
-        updateAppListBackground { it.copy(scrimPercent = percent) }
+        updateAppListBackground("scrim") { it.copy(scrimPercent = percent) }
     }
 
     fun setAppListFlowShapeCurve(curve: FlowShapeCurve) {
@@ -2943,7 +2953,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun resetAppListBackgroundEffects() {
-        updateAppListBackground {
+        val scope = submittedScope().scope
+        listOf("blur", "scrim").forEach { field ->
+            pendingWriteJobs.remove("key_app_list_background_${scope.name}_$field")?.cancel()
+        }
+        updateAppListBackground("effects") {
             it.copy(
                 blurPercent = AppListBackgroundConfig.DEFAULT_BLUR_PERCENT,
                 scrimPercent = AppListBackgroundConfig.DEFAULT_SCRIM_PERCENT,
@@ -2959,7 +2973,31 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
      * 立刻回到自定义图片档，不用再点一次模式行。
      */
     fun setAppListBackgroundImagePath(path: String?) {
-        updateAppListBackground { it.copy(imagePath = path) }
+        persistMedia {
+            store.edit { prefs ->
+                MediaSettingsFiles.updateBackground(prefs) { it.copy(imagePath = path) }
+            }
+        }
+    }
+
+    suspend fun importAppListBackground(uri: Uri, sourceRect: WatchEditorSourceRect): Result<String> {
+        val scope = (currentCoroutineContext()[ConfigScopePin] ?: submittedScope()).scope
+        val modeTag = "key_app_list_background_${scope.name}_mode"
+        val previousModeWrite = pendingWriteJobs[modeTag]
+        return replaceConfiguredMedia(
+            writeNew = { context, root -> cropAndStoreAppListBackground(context, uri, sourceRect, root) },
+            update = { path ->
+                previousModeWrite?.let { job ->
+                    job.cancel()
+                    pendingWriteJobs.remove(modeTag, job)
+                }
+                store.edit { prefs ->
+                    MediaSettingsFiles.updateBackground(prefs) {
+                        it.copy(imagePath = path, mode = AppListBackgroundMode.CUSTOM_IMAGE)
+                    }
+                }
+            },
+        )
     }
 
     // ---- 布局档案的对外操作 -------------------------------------------------
@@ -3708,28 +3746,51 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         persist { store.edit { it.remove(KEY_LAST_WATCHFACE_ERROR) } }
     }
 
-    fun setBuiltInPhotoPath(path: String?) {
-        val previousPath = _builtInPhotoPath.value
-        _builtInPhotoPath.value = path
-        _watchFaceRefreshToken.value = _watchFaceRefreshToken.value + 1
-        previousPath?.takeIf { it != path }?.let(WatchFacePhotoCache::remove)
-        if (path.isNullOrBlank()) InternalWatchFaceStorage.clearPhoto(getApplication())
-        persist {
-            store.edit {
-                if (path.isNullOrBlank()) it.remove(KEY_BUILTIN_PHOTO_PATH)
-                else it[KEY_BUILTIN_PHOTO_PATH] = path
+    fun setBuiltInPhotoPath(path: String?) = setBuiltInMediaPath(KEY_BUILTIN_PHOTO_PATH, path)
+
+    fun setBuiltInVideoPath(path: String?) = setBuiltInMediaPath(KEY_BUILTIN_VIDEO_PATH, path)
+
+    suspend fun importBuiltInPhoto(uri: Uri): Result<String> = replaceConfiguredMedia(
+        writeNew = { context, root -> InternalWatchFaceStorage.copyPhoto(context, uri, root) },
+        update = { path -> store.edit { it[KEY_BUILTIN_PHOTO_PATH] = path } },
+    )
+
+    suspend fun importBuiltInVideo(uri: Uri): Result<String> = replaceConfiguredMedia(
+        writeNew = { context, root -> InternalWatchFaceStorage.copyVideo(context, uri, root) },
+        update = { path -> store.edit { it[KEY_BUILTIN_VIDEO_PATH] = path } },
+    )
+
+    suspend fun importBuiltInWatchFaceFont(uri: Uri): Result<String> = replaceConfiguredMedia(
+        writeNew = { context, root -> InternalWatchFaceStorage.copyFont(context, uri, root) },
+        update = { path -> store.edit { it[KEY_WATCHFACE_FONT_PATH] = path } },
+    )
+
+    private suspend fun replaceConfiguredMedia(
+        writeNew: (Context, File) -> String?,
+        update: suspend (String) -> Unit,
+    ): Result<String> {
+        val context = getApplication<Application>()
+        val pin = currentCoroutineContext()[ConfigScopePin] ?: submittedScope()
+        val root = MediaSettingsFiles.mediaRoot(context, pin.scope)
+        return try {
+            val path = withContext(pin) {
+                MediaSettingsFiles.replace(context, writeNew = { writeNew(context, root) }, update = update)
             }
+            WatchFacePhotoCache.clear()
+            _watchFaceRefreshToken.value = _watchFaceRefreshToken.value + 1
+            Result.success(path)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Result.failure(error)
         }
     }
 
-    fun setBuiltInVideoPath(path: String?) {
-        _builtInVideoPath.value = path
-        _watchFaceRefreshToken.value = _watchFaceRefreshToken.value + 1
-        if (path.isNullOrBlank()) InternalWatchFaceStorage.clearVideo(getApplication())
-        persist {
-            store.edit {
-                if (path.isNullOrBlank()) it.remove(KEY_BUILTIN_VIDEO_PATH)
-                else it[KEY_BUILTIN_VIDEO_PATH] = path
+    private fun setBuiltInMediaPath(key: Preferences.Key<String>, path: String?) {
+        val value = path?.takeIf { it.isNotBlank() }
+        persistMedia {
+            store.edit { prefs ->
+                if (value == null) prefs.remove(key) else prefs[key] = value
             }
         }
     }
@@ -3776,22 +3837,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         persist { store.edit { it[KEY_VIDEO_CLOCK_COLOR_MODE] = mode.name } }
     }
 
-    fun setBuiltInWatchFaceFontPath(path: String?) {
-        _builtInWatchFaceFontPath.value = path?.takeIf { it.isNotBlank() }
-        _watchFaceRefreshToken.value = _watchFaceRefreshToken.value + 1
-        if (_builtInWatchFaceFontPath.value.isNullOrBlank()) {
-            InternalWatchFaceStorage.clearFont(getApplication())
-        }
-        persist {
-            store.edit {
-                if (_builtInWatchFaceFontPath.value.isNullOrBlank()) {
-                    it.remove(KEY_WATCHFACE_FONT_PATH)
-                } else {
-                    it[KEY_WATCHFACE_FONT_PATH] = _builtInWatchFaceFontPath.value!!
-                }
-            }
-        }
-    }
+    fun setBuiltInWatchFaceFontPath(path: String?) = setBuiltInMediaPath(KEY_WATCHFACE_FONT_PATH, path)
 
     fun setBuiltInPhotoClockStyle(style: WatchFaceClockStyle) {
         _builtInPhotoClockStyle.value = style
@@ -4256,14 +4302,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _hideFromRecents.value = true
         _watchStoreSegmentedDownload.value = true
         FlueDownloadTuning.segmentedDownloads = true
-        InternalWatchFaceStorage.clearFont(getApplication())
         appRepository.setHiddenComponents(emptySet())
         appRepository.setIconRenderingOptions(
             packageName = null,
             legacyCircular = true,
             iconSize = 128
         )
-        persist {
+        persistMedia {
             store.edit {
                 it[KEY_LAYOUT] = LayoutMode.Honeycomb.name
                 it[KEY_UI_STYLE] = DEFAULT_UI_STYLE.name
@@ -4416,12 +4461,26 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private fun persistMedia(block: suspend () -> Unit) {
+        persist {
+            try {
+                MediaSettingsFiles.edit(getApplication(), block)
+                WatchFacePhotoCache.clear()
+                _watchFaceRefreshToken.value = _watchFaceRefreshToken.value + 1
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                android.util.Log.w("FlueMedia", "Media settings could not be saved", error)
+            }
+        }
+    }
+
     private fun persistDebounced(tag: String, delayMs: Long = 120, block: suspend () -> Unit) {
         pendingWriteJobs.remove(tag)?.cancel()
         pendingWriteJobs[tag] = viewModelScope.launch(Dispatchers.IO + submittedScope()) {
             delay(delayMs)
             block()
-            pendingWriteJobs.remove(tag)
+            pendingWriteJobs.remove(tag, currentCoroutineContext()[Job])
         }
     }
 
