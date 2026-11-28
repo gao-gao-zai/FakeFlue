@@ -1,8 +1,27 @@
 # FFlue 发布与签名指南
 
-更新日期：2026-11-28。正式版本号已定为 `3.0.1 / versionCode 30001`；旧 FFlue 数据不迁移、不要求覆盖升级。
+更新日期：2026-11-29。正式版本号为 `3.0.1 / versionCode 30001`，正式签名包已构建并校验；旧 FFlue 数据不迁移、不要求覆盖升级。
 
-## 上一次已交付 APK 的身份（2.3.3 测试交付）
+## 3.0.1 正式签名包的身份
+
+| 项目 | 值 |
+| --- | --- |
+| APK 文件名 | `FFlue-3.0.1-vc30001-release.apk` |
+| applicationId | `com.gaozai.surface` |
+| versionName / versionCode | `3.0.1 / 30001` |
+| 构建源提交 | [`87b09897405fa2f5827c5f04ce3b9ae60a38bcf3`](https://github.com/gao-gao-zai/FakeFlue/commit/87b09897405fa2f5827c5f04ce3b9ae60a38bcf3)（#20 合并后的 main，工作树无改动） |
+| APK SHA-256 | `bb8d751e7b654176eedb15ea4634a9ce0595f75c9aa1c9dfe353be4e7968b175` |
+| 发布证书 | `CN=FFlue Release`，SHA-256 `16bee1eab62001b745a02eba685d663f91f31860f235347531b2010c01482ab3` |
+| 签名方案 | APK Signature Scheme v2（minSdk 27，不需要 v1） |
+| R8 映射 SHA-256 | `6b4ccbf81108a27de8a600cac90fbbc48a0787496a2a7c535204167c53a69276` |
+| 原生库 ABI | `arm64-v8a`、`armeabi-v7a` |
+
+- 证书与 2.3.3 测试交付相同，沿用用户已备份的发布密钥；密钥库只在构建期间放在内存临时目录，构建结束即删除，并确认口令没有写进构建目录或日志。
+- Release 清单不含测试或调试 Activity。
+- 测试范围：同一文件树（`cc661e3`）本地单元测试 2229 项，0 失败，5 项因缺少表盘样本跳过；本地 Debug、androidTest 编译与 Release 构建通过。没有做真机验证。
+- 本地交付目录包含 APK、配套 `mapping.txt`、`apksigner-verify.txt`、`verification.json` 与 `SHA256SUMS`，APK 不随源码提交。
+
+## 历史：2.3.3 测试交付
 
 | 项目 | 值 |
 | --- | --- |
@@ -14,7 +33,7 @@
 | APK SHA-256 | `e4fa6e99b51e6744ba624440d14917ef1b42c26893c8a763cea53028f62e8faf` |
 | 发布证书 SHA-256 | `16bee1eab62001b745a02eba685d663f91f31860f235347531b2010c01482ab3` |
 
-本次沿用用户已备份的发布密钥。本地交付目录包含 APK、配套 `mapping.txt`、`verification.json`、`validation.json`、模拟器记录与交付说明，APK 不随源码提交。
+当时沿用用户已备份的发布密钥。本地交付目录包含 APK、配套 `mapping.txt`、`verification.json`、`validation.json`、模拟器记录与交付说明，APK 不随源码提交。
 
 构建源提交记录 APK 的实际来源；后续变基、squash 合并和文档整理通过生产代码一致性核对关联到应用验收基线，不改写 APK 内的 VCS 元数据。表中的 APK 哈希仅对应这次已交付文件，重新构建后应重新计算。
 
@@ -65,6 +84,7 @@ Base64 是文件编码，独立于本地加密备份。配置后手动勾选 `bu
 - [x] 确定 FFlue 正式版本：`3.0.1 / versionCode 30001`。
 - [x] 旧版兼容：用户决定旧 FFlue 数据不迁移，不做历史备份、旧手势恢复和覆盖升级验证。设备上的旧 FFlue（同包名、不同签名）需先卸载。
 - [ ] 完成或明确列出本次发行未验的设备项目。用户当前选择不做实机，Root／SIM／ROM／实体键和实际性能仍保留待验状态。
-- [ ] 对最终选定的发布提交构建、校验签名并重新记录 APK 哈希、版本、证书、映射和测试范围，再创建正式标签或 Release。
+- [x] 对发布提交 `87b0989` 构建、校验签名并记录 APK 哈希、版本、证书、映射和测试范围（见上文 3.0.1 身份表）。
+- [ ] 经用户授权后创建 `v3.0.1` 标签或 GitHub Release。
 
-本轮文档收尾沿用现有应用验收与签名包。版本号、历史兼容和设备验收的具体状态见[开发与验收状态](PROJECT_STATUS.md)。
+版本号、历史兼容和设备验收的具体状态见[开发与验收状态](PROJECT_STATUS.md)。
