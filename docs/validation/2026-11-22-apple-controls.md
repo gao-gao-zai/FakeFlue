@@ -29,6 +29,6 @@
 
 本地全量单元测试 2229 项、0 失败、0 错误，5 项因缺少本地样本跳过。Debug APK、仪器测试 APK 和独立 Release 验收 APK 均构建通过。
 
-本轮以 PR #17 为基准，模拟器套件包含两轮修改的组合。结果以本分支的 [Actions 记录](https://github.com/gao-gao-zai/FakeFlue/actions/workflows/android-ci.yml?query=branch%3Ayzp%2Fapple-controls-accessibility) 和 PR 验证说明为准。Debug 预计执行 18 项，Release 首轮 3 项、冷启动 1 项。
+[PR #17](https://github.com/gao-gao-zai/FakeFlue/pull/17) 与 [PR #18](https://github.com/gao-gao-zai/FakeFlue/pull/18) 已按依赖顺序合并，应用基线为 `f20d343`。最终合并前的 [CI](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44995141399) 已通过：Debug 18 项、0 失败、0 跳过，包含控件测试 4 项、三风格 DPI 旅程 1 项和旧设置页 5 项；R8 Release 首轮 3 项、外部强制停止后的恢复 1 项全部通过。[main 合并后 CI](https://github.com/gao-gao-zai/FakeFlue/actions/runs/44996335333) 的单元测试与构建已通过，完整文件树与验收提交一致。
 
 按用户约定不做真机验收。读屏服务的实际语音播报、实体旋钮和各手表 ROM 的行为仍需设备验证。
