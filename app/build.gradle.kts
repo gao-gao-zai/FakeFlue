@@ -49,9 +49,10 @@ android {
         applicationId = "com.gaozai.surface"
         minSdk = 27
         targetSdk = 36
-        // 正式发布前须高于设备上旧 FFlue 的 versionCode（R03、R37），拿到旧值后再改。
-        versionCode = 28
-        versionName = "2.3.3"
+        // FFlue 首个正式版本（用户确定为 3.0.1）。旧 FFlue 数据不迁移，不要求覆盖安装旧版；
+        // 之后每次发布 versionCode 递增，按 major*10000 + minor*100 + patch 编号。
+        versionCode = 30001
+        versionName = "3.0.1"
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") + listOfNotNull(extraAbi) }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -4,7 +4,7 @@ FFlue（FakeFlue）是基于 [Flue](https://github.com/xumidcm/Flue-next) 2.3.3 
 
 - 包名：`com.gaozai.surface`，可与原版 Flue（`com.flue.launcher`）同时安装。
 - 许可：[GPL-3.0](LICENSE)，上游与第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。感谢 Flue 原作者 xumidcm 及所有贡献者。
-- 当前测试交付版本：`2.3.3 / versionCode 28`。版本号仍待正式发布前确定。
+- 当前版本：`3.0.1 / versionCode 30001`（首个正式版本号）。旧 FFlue 的数据不迁移，需全新安装。
 
 P0–P7 主体开发及签名、数据保护、显示适配和控件补漏已合并。自动验证已完成，设备专项与旧版兼容仍有待验收项，详见[开发与验收状态](docs/PROJECT_STATUS.md)。
 
