@@ -31,7 +31,7 @@ git switch -c yzp/<topic>
 - 测试版本使用 `v<major>.<minor>.<patch>-beta`，例如 `v1.5.0-beta`。
 - 不再继续开发、但仍需保留的实验分支使用 `archive/<topic>` tag。
 - 正式 tag 只能指向已完成 Release 构建和 APK 签名验证的提交。
-- 当前 `2.3.3 / versionCode 28` 是测试交付值，不能据此认定正式版本已确定；发布检查见[发布与签名指南](RELEASING.md)。
+- 当前版本为 `3.0.1 / versionCode 30001`，对应正式标签 `v3.0.1`；只有完成发布检查后才能打标签，见[发布与签名指南](RELEASING.md)。推送 `v*` 标签会触发云端签名任务，未配置 Secrets 时该任务会失败。
 - tag 推送到 GitHub 后，才能删除它替代的版本分支或归档分支。
 
 ```powershell
